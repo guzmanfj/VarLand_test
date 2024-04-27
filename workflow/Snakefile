@@ -1,0 +1,530 @@
+import itertools
+import string
+import numpy as np
+
+configfile: "config/config.yml"
+
+RESULTS_DIR = config["results_dir"]
+DATA_DIR = config["data_dir"]
+LOG_DIR = config["log_dir"]
+SCRIPTS_DIR = config["scripts_dir"]
+UNIPROT_IDMAPPING = config["uniprot_idmapping"]
+ALPHAFOLD_DIR = config["alphafold_dir"]
+MANE_DIR = config["mane_dir"]
+DSSP_ALPHAFOLD = config["dssp_alphafold"]
+DSSP_MANE = config["dssp_mane"]
+
+chromosomes = ["chr" + str(i) for i in range(1, 23)] + ["chrX", "chrY"]
+MAX_VARIANTS = config["max_variants_per_vep_run"]
+# ALL_CHUNKS = list(itertools.product(string.ascii_lowercase, string.ascii_lowercase))
+
+wildcard_constraints:
+    dataset="|".join(config["datasets"]),
+    chromosome="|".join(chromosomes),
+    i="[a-z][a-z]",
+    j="\d+-\d+"
+
+# ALL_CHUNKS = list(itertools.product(string.ascii_lowercase, string.ascii_lowercase))
+# def get_chunks(wildcards):
+#     """
+#     Calculate the names of the files that will be created by splitting the variants.
+#     The suffixes of the files will be aa, ab, ac, etc.
+#     """
+#     variants_file = RESULTS_DIR + f"/{wildcards.dataset}_chrs/{wildcards.chromosome}_variants.txt"
+#     with open(variants_file) as f:
+#         num_variants = sum(1 for _ in f)
+    
+#     num_chunks = int(np.ceil(num_variants / MAX_VARIANTS))
+
+#     return ALL_CHUNKS[:num_chunks]
+
+rule targets:
+    input:
+        expand("{RESULTS_DIR}/{dataset}_annotations/13_catalytic_residues.pkl",
+                RESULTS_DIR=RESULTS_DIR,
+                dataset=config["datasets"])
+
+
+rule pysam_compress:
+    """res
+    Compress the VCF file using pysam
+    """
+    input:
+        lambda wildcards: config["datasets"][wildcards.dataset]
+    output:
+        RESULTS_DIR + "/{dataset}.vcf.bgz"
+    container:
+        "docker://gzmf/pysam_compress:0.1"
+    log:
+        LOG_DIR + "/01_pysam_compress/{dataset}.log"
+    shell:
+        """
+        python {SCRIPTS_DIR}/pysam_compress.py {input} {output} > {log} 2>&1
+        """
+
+rule tabix_index:
+    """
+    Index the VCF file using tabix
+    """
+    input:
+        RESULTS_DIR + "/{dataset}.vcf.bgz"
+    output:
+        RESULTS_DIR + "/{dataset}.vcf.bgz.tbi"
+    container:
+        "docker://gzmf/tabix_index:0.1"
+    log:
+        LOG_DIR + "/02_tabix_index/{dataset}.log"
+    shell:
+        """
+        tabix {input} > {log} 2>&1
+        """
+
+
+rule split_chromosomes:
+    """
+    Split the VCF file by chromosome
+    """
+    input:
+        vcf=RESULTS_DIR + "/{dataset}.vcf.bgz",
+        tbi=RESULTS_DIR + "/{dataset}.vcf.bgz.tbi"
+    output:
+        RESULTS_DIR + "/{dataset}_chrs/{chromosome}.vcf"
+    params:
+        out_dir=RESULTS_DIR + "/{dataset}_chrs"
+    container:
+        "docker://staphb/bcftools:1.19"
+    log:
+        LOG_DIR + "/03_split_chromosomes/{dataset}_{chromosome}.log"
+    shell:
+        """
+        mkdir -p {params.out_dir}
+        bcftools view {input.vcf} --regions {wildcards.chromosome} > \
+        {params.out_dir}/{wildcards.chromosome}.vcf 2> {log}
+        """
+
+
+rule export_variants:
+    """
+    Create a table with the variants in the VCF file, to be able to count them
+    """
+    input:
+        vcf=RESULTS_DIR + "/{dataset}_chrs/{chromosome}.vcf"
+    output:
+        RESULTS_DIR + "/{dataset}_chrs/{chromosome}_variants.txt"
+    container:
+        "docker://staphb/bcftools:1.19"
+    log:
+        LOG_DIR + "/04_variants_table/{dataset}_{chromosome}.log"
+    shell:
+        """
+        bcftools query -f'%CHROM\t%POS\n' {input.vcf} > {output} 2> {log}
+        """
+
+
+checkpoint split_variants:
+    """
+    Split the chromosome files into smaller files with a maximum number of variants
+    Define this rule as a checkpoint because it generates multiple output files
+    """
+    input:
+        RESULTS_DIR + "/{dataset}_chrs/{chromosome}_variants.txt"
+    output:
+        split_dir=directory(RESULTS_DIR + "/{dataset}_chrs/{chromosome}_split")
+    params:
+        max_variants=MAX_VARIANTS,
+        output_dir=RESULTS_DIR + "/{dataset}_chrs/{chromosome}_split"
+    shell:
+        """
+        mkdir {params.output_dir}; \
+        cat {input} | split -l {params.max_variants} - {params.output_dir}/chunk_
+        """
+
+
+rule extract_variants:
+    """
+    Extract the variants listed in the chunk file
+    """
+    input:
+        vcf=RESULTS_DIR + "/{dataset}_chrs/{chromosome}.vcf",
+        chunk=RESULTS_DIR + "/{dataset}_chrs/{chromosome}_split/chunk_{i}"
+    output:
+        RESULTS_DIR + "/{dataset}_chrs/{chromosome}_split/chunk_{i}.vcf"
+    container:
+        "docker://staphb/bcftools:1.19"
+    log:
+        LOG_DIR + "/05_extract_variants/{dataset}_{chromosome}_{i}.log"
+    shell:
+        """
+        bcftools view -T {input.chunk} {input.vcf} > {output} 2> {log}
+        """
+
+rule run_vep:
+    """
+    Run the VEP on the extracted variants
+    """
+    input:
+        RESULTS_DIR + "/{dataset}_chrs/{chromosome}_split/chunk_{i}.vcf"
+    output:
+        RESULTS_DIR + "/{dataset}_chrs/{chromosome}_split/chunk_{i}.vcf.vep"
+    container:
+        "docker://ensemblorg/ensembl-vep:release_111.0"
+    log:
+        LOG_DIR + "/06_run_vep/{dataset}_{chromosome}_{i}.log"
+    shell:
+        """
+        vep \
+        --dir /data \
+        -i {input} \
+        -o {output} \
+        --assembly GRCh38 \
+        --species homo_sapiens \
+        --offline --cache --cache_version 111 \
+        --fork 4 --format vcf --total_length --vcf \
+        --uniprot \
+        --mane \
+        --mane_select \
+        --protein \
+        --canonical \
+        --biotype \
+        --domains \
+        --xref_refseq \
+        --check_existing \
+        --variant_class \
+        --sift b \
+        --polyphen b \
+        --plugin Conservation,mammals \
+        --plugin Blosum62 \
+        --force_overwrite \
+        --no_stats > {log} 2>&1
+        """
+
+
+def aggregate_input(wildcards):
+    checkpoint_output = checkpoints.split_variants.get(**wildcards).output[0]
+    return expand("{RESULTS_DIR}/{dataset}_chrs/{chromosome}_split/chunk_{i}.vcf.vep",
+                    RESULTS_DIR=RESULTS_DIR,
+                    dataset=wildcards.dataset,
+                    chromosome=wildcards.chromosome,
+                    i=glob_wildcards(os.path.join(checkpoint_output, "chunk_{i,[a-z][a-z]}")).i)
+
+
+rule aggregate_vep:
+    """
+    Aggregate rule to check that VEP was run correctly on all chunks.
+    It has to be a separate rule to read_vcfs because the input is a function
+    that needs the chromosome and dataset wildcards.
+    """
+    input:
+        aggregate_input
+    params:
+        chrs_dir=RESULTS_DIR + "/{dataset}_chrs"
+    output:
+        RESULTS_DIR + "/{dataset}_chrs/{chromosome}_vep_done"
+    shell:
+        "echo {input} > {output}"
+
+
+rule read_vcfs:
+    """
+    Read all vcfs and merge them into a single pandas DataFrame
+    """
+    input:
+        expand("{RESULTS_DIR}/{dataset}_chrs/{chromosome}_vep_done",
+                RESULTS_DIR=RESULTS_DIR,
+                dataset=config["datasets"],
+                chromosome=chromosomes)
+    params:
+        chrs_dir=RESULTS_DIR + "/{dataset}_chrs"
+    output:
+        out_pickle=RESULTS_DIR + "/{dataset}_annotations/01_all_variants.pkl",
+    container:
+        "docker://gzmf/read_vcfs:0.1"
+    log:
+        LOG_DIR + "/07_read_vcfs/{dataset}.log"
+    shell:
+        """
+        python {SCRIPTS_DIR}/read_vcfs.py {params.chrs_dir} {output.out_pickle} > {log} 2>&1
+        """
+
+
+rule process_infos:
+    """
+    Process the INFO fields in the VEP annotations
+    """
+    input:
+        RESULTS_DIR + "/{dataset}_annotations/01_all_variants.pkl"
+    params:
+        infos=SCRIPTS_DIR + "/info_fields.txt"
+    output:
+        RESULTS_DIR + "/{dataset}_annotations/02_variants.pkl"
+    container:
+        "docker://gzmf/read_vcfs:0.1"
+    log:
+        LOG_DIR + "/08_process_infos/{dataset}.log"
+    shell:
+        """
+        python {SCRIPTS_DIR}/process_infos.py {input} {params.infos} {output} > {log} 2>&1
+        """
+
+
+rule filter_missense:
+    """
+    Separates the INFO fields into columns and filters missense variants
+    """
+    input:
+        RESULTS_DIR + "/{dataset}_annotations/02_variants.pkl"
+    output:
+        RESULTS_DIR + "/{dataset}_annotations/03_missense.pkl"
+    container:
+        "docker://gzmf/read_vcfs:0.1"
+    log:
+        LOG_DIR + "/09_filter_missense/{dataset}.log"
+    shell:
+        """
+        python {SCRIPTS_DIR}/filter_missense.py {input} {output} > {log} 2>&1
+        """
+
+
+rule filter_mane:
+    """
+    Filter the variants that have a MANE transcript
+    """
+    input:
+        RESULTS_DIR + "/{dataset}_annotations/03_missense.pkl"
+    output:
+        RESULTS_DIR + "/{dataset}_annotations/04_mane.pkl"
+    container:
+        "docker://gzmf/read_vcfs:0.1"
+    log:
+        LOG_DIR + "/10_filter_mane/{dataset}.log"
+    shell:
+        """
+        python {SCRIPTS_DIR}/filter_mane.py {input} {output} > {log} 2>&1
+        """
+
+
+rule filter_refseq:
+    """
+    Filter variants with the RefSeq ID equal to the MANE ID
+    """
+    input:
+        RESULTS_DIR + "/{dataset}_annotations/04_mane.pkl"
+    output:
+        RESULTS_DIR + "/{dataset}_annotations/05_variants.pkl"
+    container:
+        "docker://gzmf/read_vcfs:0.1"
+    log:
+        LOG_DIR + "/11_filter_refseq/{dataset}.log"
+    shell:
+        """
+        python {SCRIPTS_DIR}/filter_refseq.py {input} {output} > {log} 2>&1
+        """
+
+
+checkpoint get_uniprot_ids:
+    """
+    Obtain the UniProt IDs for the variants. It also creates a directory with
+    the ranges to split the variants DataFrame in further steps.
+    """
+    input:
+        RESULTS_DIR + "/{dataset}_annotations/05_variants.pkl"
+    output:
+        out_ranges=directory(RESULTS_DIR + "/{dataset}_annotations/07_ranges"),
+        out_pickle=RESULTS_DIR + "/{dataset}_annotations/07_variants.pkl"
+    container:
+        "docker://gzmf/read_vcfs:0.1"
+    log:
+        LOG_DIR + "/12_idmapping/{dataset}.log"
+    shell:
+        """
+        python {SCRIPTS_DIR}/get_uniprot_ids.py {input} {UNIPROT_IDMAPPING} \
+        {output.out_pickle} {output.out_ranges} > {log} 2>&1
+        """
+
+
+rule find_pdbs:
+    """
+    Find the PDBs for every variant
+    """
+    input:
+        pickle=RESULTS_DIR + "/{dataset}_annotations/07_variants.pkl",
+        ranges=RESULTS_DIR + "/{dataset}_annotations/07_ranges/range_{j}"
+    output:
+        RESULTS_DIR + "/{dataset}_annotations/08_variants/11_variants_{j}.pkl"
+    container:
+        "docker://gzmf/calculate_features:0.1"
+    log:
+        LOG_DIR + "/13_find_pdbs/{dataset}_{j}.log"
+    shell:
+        """
+        python {SCRIPTS_DIR}/find_pdbs.py {input.pickle} {wildcards.j} \
+        {ALPHAFOLD_DIR} {MANE_DIR} {output} > {log} 2>&1
+        """
+
+
+rule get_catalytic:
+    """
+    Find the catalytic residues for the UniProt IDs in every variant chunk file
+    """
+    input:
+        RESULTS_DIR + "/{dataset}_annotations/08_variants/11_variants_{j}.pkl"
+    output:
+        RESULTS_DIR + "/{dataset}_annotations/09_catalytic/12_catalytic_residues_{j}.pkl"
+    container:
+        "docker://gzmf/get_catalytic:0.1"
+    log:
+        LOG_DIR + "/14_get_catalytic/{dataset}_{j}.log"
+    shell:
+        """
+        python {SCRIPTS_DIR}/get_catalytic.py {input} {output} > {log} 2>&1
+        """
+
+
+def aggregate_output_catalytic(wildcards):
+    checkpoint_output = checkpoints.get_uniprot_ids.get(**wildcards).output[0]
+    return expand("{RESULTS_DIR}/{dataset}_annotations/09_catalytic/12_catalytic_residues_{j}.pkl",
+                    RESULTS_DIR=RESULTS_DIR,
+                    dataset=wildcards.dataset,
+                    j=glob_wildcards(os.path.join(checkpoint_output, "range_{j}")).j)
+
+
+rule aggregate_catalytic:
+    """
+    Aggregate rule to check that the get_catalytic step was run correctly on all
+    chunks.
+    """
+    input:
+        aggregate_output_catalytic
+    output:
+        RESULTS_DIR + "/{dataset}_annotations/09_catalytic_done"
+    shell:
+        "echo {input} > {output}"
+
+
+rule combine_catalytic:
+    """
+    Combine all the pickle files with catalytic residues into one
+    """
+    input:
+        expand("{RESULTS_DIR}/{dataset}_annotations/09_catalytic_done",
+                RESULTS_DIR=RESULTS_DIR,
+                dataset=config["datasets"])
+    params:
+        RESULTS_DIR + "/{dataset}_annotations/09_catalytic"
+    output:
+        RESULTS_DIR + "/{dataset}_annotations/13_catalytic_residues.pkl"
+    container:
+        "docker://gzmf/read_vcfs:0.1"
+    log:
+        LOG_DIR + "/15_combine_catalytic/{dataset}.log"
+    shell:
+        """
+        python {SCRIPTS_DIR}/combine_catalytic.py {params} {output} > {log} 2>&1
+        """
+
+rule preprocess_variants:
+    """
+    Preprocess the variants and get DSSP file paths
+    """
+    input:
+        RESULTS_DIR + "/{dataset}_annotations/08_variants/11_variants_{j}.pkl"
+    output:
+        RESULTS_DIR + "/{dataset}_annotations/10_preprocessed/14_variants_{j}.pkl"
+    container:
+        "docker://gzmf/calculate_features:0.1"
+    log:
+        LOG_DIR + "/16_preprocess_variants/{dataset}_{j}.log"
+    shell:
+        """
+        python {SCRIPTS_DIR}/preprocess.py {input} \
+        {DSSP_ALPHAFOLD} {DSSP_MANE} {output} > {log} 2>&1
+        """
+
+rule calculate_features:
+    """
+    Calculate the features for the variants
+    """
+    input:
+        variants=RESULTS_DIR + "/{dataset}_annotations/10_preprocessed/14_variants_{j}.pkl"
+        catalytic=RESULTS_DIR + "/{dataset}_annotations/13_catalytic_residues.pkl"
+    output:
+        RESULTS_DIR + "/{dataset}_annotations/11_features/15_variants_{j}.pkl"
+    container:
+        "docker://gzmf/calculate_features:0.1"
+    log:
+        LOG_DIR + "/17_calculate_features/{dataset}_{j}.log"
+    shell:
+        """
+        python {SCRIPTS_DIR}/calculate_features.py {input.variants} \
+        {input.catalytic} {output} > {log} 2>&1
+        """
+
+rule run_foldx:
+    """
+    Run FoldX on the variants
+    """
+    input:
+        RESULTS_DIR + "/{dataset}_annotations/10_preprocessed/14_variants_{j}.pkl"
+    output:
+        RESULTS_DIR + "/{dataset}_annotations/12_foldx/17_foldx_energies_{j}.pkl"
+    container:
+        "docker://gzmf/run_foldx:0.1"
+    log:
+        LOG_DIR + "/18_run_foldx/{dataset}_{j}.log"
+    shell:
+        """
+        python {SCRIPTS_DIR}/run_foldx.py {input} {output} > {log} 2>&1
+        """
+
+
+def aggregate_output_features(wildcards):
+    checkpoint_output = checkpoints.get_uniprot_ids.get(**wildcards).output[0]
+    return expand("{RESULTS_DIR}/{dataset}_annotations/11_features/15_variants{j}.pkl",
+                    RESULTS_DIR=RESULTS_DIR,
+                    dataset=wildcards.dataset,
+                    j=glob_wildcards(os.path.join(checkpoint_output, "range_{j}")).j)
+
+def aggregate_output_foldx(wildcards):
+    checkpoint_output = checkpoints.get_uniprot_ids.get(**wildcards).output[0]
+    return expand("{RESULTS_DIR}/{dataset}_annotations/12_foldx/17_foldx_energies_{j}.pkl",
+                    RESULTS_DIR=RESULTS_DIR,
+                    dataset=wildcards.dataset,
+                    j=glob_wildcards(os.path.join(checkpoint_output, "range_{j}")).j)
+
+
+rule aggregate_features:
+    """
+    Aggregate rule to check that the calculate_features and run_foldx steps were
+    run correctly on all chunks.
+    """
+    input:
+        aggregate_output_features,
+        aggregate_output_foldx
+    output:
+        RESULTS_DIR + "/{dataset}_annotations/18_features_done"
+    shell:
+        "echo {input} > {output}"
+
+
+rule merge_variants:
+    """
+    Merge all the variants into a single DataFrame
+    """
+    input:
+        expand("{RESULTS_DIR}/{dataset}_annotations/18_features_done",
+                RESULTS_DIR=RESULTS_DIR,
+                dataset=config["datasets"])
+    params:
+        features_dir=RESULTS_DIR + "/{dataset}_annotations/11_features",
+        foldx_dir=RESULTS_DIR + "/{dataset}_annotations/12_foldx"
+    output:
+        RESULTS_DIR + "/{dataset}_annotations.pkl"
+    container:
+        "docker://gzmf/read_vcfs:0.1"
+    log:
+        LOG_DIR + "/19_merge_variants/{dataset}.log"
+    shell:
+        """
+        python {SCRIPTS_DIR}/merge_variants.py {params.features_dir} \
+        {params.foldx_dir} {output} > {log} 2>&1
+        """

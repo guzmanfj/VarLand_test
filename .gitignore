@@ -1,0 +1,7 @@
+resources/
+.biskit/
+.snakemake/
+data/
+env/
+logs/
+results/
