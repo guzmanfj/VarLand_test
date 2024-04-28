@@ -24,23 +24,10 @@ wildcard_constraints:
     i="[a-z][a-z]",
     j="\d+-\d+"
 
-# ALL_CHUNKS = list(itertools.product(string.ascii_lowercase, string.ascii_lowercase))
-# def get_chunks(wildcards):
-#     """
-#     Calculate the names of the files that will be created by splitting the variants.
-#     The suffixes of the files will be aa, ab, ac, etc.
-#     """
-#     variants_file = RESULTS_DIR + f"/{wildcards.dataset}_chrs/{wildcards.chromosome}_variants.txt"
-#     with open(variants_file) as f:
-#         num_variants = sum(1 for _ in f)
-    
-#     num_chunks = int(np.ceil(num_variants / MAX_VARIANTS))
-
-#     return ALL_CHUNKS[:num_chunks]
 
 rule targets:
     input:
-        expand("{RESULTS_DIR}/{dataset}_annotations/13_catalytic_residues.pkl",
+        expand("{RESULTS_DIR}/{dataset}_annotations.pkl",
                 RESULTS_DIR=RESULTS_DIR,
                 dataset=config["datasets"])
 
@@ -445,7 +432,7 @@ rule calculate_features:
     Calculate the features for the variants
     """
     input:
-        variants=RESULTS_DIR + "/{dataset}_annotations/10_preprocessed/14_variants_{j}.pkl"
+        variants=RESULTS_DIR + "/{dataset}_annotations/10_preprocessed/14_variants_{j}.pkl",
         catalytic=RESULTS_DIR + "/{dataset}_annotations/13_catalytic_residues.pkl"
     output:
         RESULTS_DIR + "/{dataset}_annotations/11_features/15_variants_{j}.pkl"
@@ -479,7 +466,7 @@ rule run_foldx:
 
 def aggregate_output_features(wildcards):
     checkpoint_output = checkpoints.get_uniprot_ids.get(**wildcards).output[0]
-    return expand("{RESULTS_DIR}/{dataset}_annotations/11_features/15_variants{j}.pkl",
+    return expand("{RESULTS_DIR}/{dataset}_annotations/11_features/15_variants_{j}.pkl",
                     RESULTS_DIR=RESULTS_DIR,
                     dataset=wildcards.dataset,
                     j=glob_wildcards(os.path.join(checkpoint_output, "range_{j}")).j)

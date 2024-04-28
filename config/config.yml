@@ -9,5 +9,5 @@ max_variants_per_vep_run: 1000
 uniprot_idmapping: resources/uniprot_2024_02/knowledgebase/idmapping/by_organism/HUMAN_9606_idmapping.dat.gz
 alphafold_dir: resources/alphafold_human_v4
 mane_dir: resources/alphafold_mane
-dssp_alphafold: resources/alphafold_dssp
-dssp_mane: resources/mane_dssp
+dssp_alphafold: resources/alphafold_human_v4_dssp
+dssp_mane: resources/alphafold_mane_dssp
