@@ -153,6 +153,7 @@ rule run_vep:
         RESULTS_DIR + "/{dataset}_chrs/{chromosome}_split/chunk_{i}.vcf"
     output:
         RESULTS_DIR + "/{dataset}_chrs/{chromosome}_split/chunk_{i}.vcf.vep"
+    threads: 4
     container:
         "docker://ensemblorg/ensembl-vep:release_111.0"
     log:
