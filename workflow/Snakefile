@@ -25,9 +25,15 @@ wildcard_constraints:
     j="\d+-\d+"
 
 
+# rule targets:
+#     input:
+#         expand("{RESULTS_DIR}/{dataset}_annotations.pkl",
+#                 RESULTS_DIR=RESULTS_DIR,
+#                 dataset=config["datasets"])
+
 rule targets:
     input:
-        expand("{RESULTS_DIR}/{dataset}_annotations.pkl",
+        expand("{RESULTS_DIR}/{dataset}_annotations/18_features_done",
                 RESULTS_DIR=RESULTS_DIR,
                 dataset=config["datasets"])
 
@@ -180,8 +186,6 @@ rule run_vep:
         --variant_class \
         --sift b \
         --polyphen b \
-        --plugin Conservation,mammals \
-        --plugin Blosum62 \
         --force_overwrite \
         --no_stats > {log} 2>&1
         """
@@ -464,6 +468,41 @@ rule run_foldx:
         python {SCRIPTS_DIR}/run_foldx.py {input} {output} > {log} 2>&1
         """
 
+rule write_for_dbnsfp:
+    """
+    Write the variants to a file to be used with dbNSFP
+    """
+    input:
+        RESULTS_DIR + "/{dataset}_annotations/10_preprocessed/14_variants_{j}.pkl"
+    output:
+        RESULTS_DIR + "/{dataset}_annotations/13_dbnsfp/18_dbnsfp_variants_{j}.in"
+    container:
+        "docker://gzmf/read_vcfs:0.1"
+    log:
+        LOG_DIR + "/19_write_for_dbnsfp/{dataset}_{j}.log"
+    shell:
+        """
+        python {SCRIPTS_DIR}/write_for_dbnsfp.py {input} {output} > {log} 2>&1
+        """
+
+rule run_dbnsfp:
+    """
+    Write the variants to a file to be used with dbNSFP
+    """
+    input:
+        RESULTS_DIR + "/{dataset}_annotations/13_dbnsfp/18_dbnsfp_variants_{j}.in"
+    output:
+        RESULTS_DIR + "/{dataset}_annotations/13_dbnsfp/18_dbnsfp_variants_{j}.out"
+        RESULTS_DIR + "/{dataset}_annotations/13_dbnsfp/18_dbnsfp_variants_{j}.err"
+    container:
+        "docker://ibmjava:8-sfj"
+    log:
+        LOG_DIR + "/20_run_dbnsfp/{dataset}_{j}.log"
+    shell:
+        """
+        java -Xmx4g search_dbNSFP49a -i tryhg38.short.in -o tryhg38.short.out -w 1-6,12-18,190-211
+        """
+
 
 def aggregate_output_features(wildcards):
     checkpoint_output = checkpoints.get_uniprot_ids.get(**wildcards).output[0]
@@ -479,6 +518,12 @@ def aggregate_output_foldx(wildcards):
                     dataset=wildcards.dataset,
                     j=glob_wildcards(os.path.join(checkpoint_output, "range_{j}")).j)
 
+def aggregate_output_dbnsfp(wildcards):
+    checkpoint_output = checkpoints.get_uniprot_ids.get(**wildcards).output[0]
+    return expand("{RESULTS_DIR}/{dataset}_annotations/13_dbnsfp/18_dbnsfp_variants_{j}.out",
+                    RESULTS_DIR=RESULTS_DIR,
+                    dataset=wildcards.dataset,
+                    j=glob_wildcards(os.path.join(checkpoint_output, "range_{j}")).j)
 
 rule aggregate_features:
     """
@@ -487,7 +532,8 @@ rule aggregate_features:
     """
     input:
         aggregate_output_features,
-        aggregate_output_foldx
+        aggregate_output_foldx,
+        aggregate_output_dbnsfp
     output:
         RESULTS_DIR + "/{dataset}_annotations/18_features_done"
     shell:
