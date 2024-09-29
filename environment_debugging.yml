@@ -1,0 +1,15 @@
+# combination of environments from pytorch and tensorflow projects from vislab
+# 28 april 2022
+name: null
+
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - ipykernel
+  - matplotlib
+  - numpy=1.26
+  - pandas=2.2
+  - pip
+  - python=3.9

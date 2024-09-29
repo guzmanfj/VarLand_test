@@ -2,11 +2,7 @@
 Script to write the variants to files for dbnsfp to process them.
 '''
 
-import re
-import sys
 import pandas as pd
-from FoldX.FoldX import FoldX
-import pickle
 import argparse
 from pathlib import Path
 

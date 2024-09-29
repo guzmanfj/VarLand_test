@@ -61,7 +61,7 @@ if __name__=='__main__':
                 'DISTANCE|STRAND|FLAGS|VARIANT_CLASS|SYMBOL_SOURCE|HGNC_ID|'
                 'CANONICAL|MANE_SELECT|MANE_PLUS_CLINICAL|ENSP|SWISSPROT|'
                 'TREMBL|UNIPARC|UNIPROT_ISOFORM|RefSeq|SIFT|PolyPhen|DOMAINS|'
-                'CLIN_SIG|SOMATIC|PHENO|Conservation|BLOSUM62').split('|')
+                'CLIN_SIG|SOMATIC|PHENO').split('|')
 
     vep = variants.CSQ.str.split('|', expand=True)
     vep.columns = columns_vep

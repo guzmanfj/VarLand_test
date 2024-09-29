@@ -39,9 +39,35 @@ def parsing(args: list=None) -> argparse.Namespace:
     parser.add_argument('foldx_energies', help='Input directory with the foldx '
                         'energies dictionaries', type=validate_file)
     
+    parser.add_argument('dbnsfp_dir', help='Input directory with the dbNSFP '
+                        'files', type=validate_file)
+    
     parser.add_argument('output', help='Output file', type=Path)
     
     return parser.parse_args(args)
+
+
+def separate_values(row:pd.Series, columns:list):
+    """
+    Separate the values in the columns of a row by the delimiter, and return
+    a dataframe with the separated values into their own rows.
+
+    Args:
+        row (pd.Series): Row to separate.
+        columns (list): Columns to consider for separation.
+    """
+    # Separate values
+    split_values = []
+    for col in columns:
+        split_values.append(row[col].split(';'))
+    
+    # Create dictionary with index values
+    index_columns = ['#chr','pos(1-based)','ref','alt','aaref','aaalt']
+    df_values = {indcol:indval for indcol, indval in zip(index_columns, row[index_columns])}
+    # Add the separated values to the dictionary
+    df_values.update({col:val for col, val in zip(columns, split_values)})
+    
+    return pd.DataFrame(df_values)
 
 
 if __name__ == '__main__':
@@ -72,9 +98,6 @@ if __name__ == '__main__':
         noadj_contacts[i] = contacts[select]
 
     variants['intra_contacts'] = pd.Series(noadj_contacts)
-    variants['Conservation'] = variants['Conservation'].astype(float)
-    variants['BLOSUM62'] = variants['BLOSUM62'].astype(int)
-
 
     ## Add foldx energies
 
@@ -101,9 +124,54 @@ if __name__ == '__main__':
     # Remove the duplicated rows in the full dataframe based on the selected columns
     variants = variants.drop_duplicates(subset=select_columns).reset_index(drop=True)
 
+
+    ############################### Add dbNSFP features
+    dbnsfp_results = []
+    for file in args.dbnsfp_dir.glob('*.out'):
+        idbnsfp = pd.read_csv(file, sep='\t')
+        dbnsfp_results.append(idbnsfp)
+
+    dbnsfp = pd.concat(dbnsfp_results).reset_index(drop=True)
+    
+    # The dbnsfp dataframe sometimes contains multiple annotations for a single variant,
+    # separated by a semicolon. We need to separate these values into their own rows.
+    # Separate the values in the columns of a row by the delimiter, and return
+    # a dataframe with the separated values into their own rows.
+    dbnsfp_exploded = pd.concat(dbnsfp.iloc[:,:13].apply(lambda x: separate_values(
+                                        x, list(dbnsfp.columns[6:13])), axis=1).values).reset_index(drop=True)
+
+    # Merge the exploded dataframe with the score columns of the original dbnsfp dataframe
+    dbnsfp_merged = pd.merge(dbnsfp_exploded, dbnsfp.drop(columns=dbnsfp.columns[6:13]),
+                            on=['#chr','pos(1-based)','ref','alt','aaref','aaalt'], how='left')
+
+    # Rename columns to merge with the variants dataframe
+    dbnsfp_merged.rename(columns={'#chr':'#CHROM',
+                                'pos(1-based)':'POS',
+                                'ref':'REF',
+                                'alt':'ALT',
+                                'Ensembl_transcriptid':'Feature',
+                                'aapos':'Residue_position'}, inplace=True)
+    dbnsfp_merged['Residue_position'] = dbnsfp_merged['Residue_position'].astype(int)
+    dbnsfp_merged['#CHROM'] = 'chr' + dbnsfp_merged['#CHROM'].astype(str)
+
+    variants_merged = pd.merge(variants, dbnsfp_merged,
+                               on=['#CHROM','POS','REF','ALT','Feature','Residue_position'],
+                               how='left')
+
+    cols_to_remove = ['Consequence','Feature_type','BIOTYPE','EXON','INTRON',
+                      'HGVSc','HGVSp','cDNA_position','DISTANCE','Ensembl_geneid',
+                      'Ensembl_proteinid','Uniprot_acc','Uniprot_entry']
+
+    variants_merged.drop(columns=cols_to_remove, inplace=True)
+
+    cols_to_format = ['GERP++_NR','GERP++_RS']
+    for col in cols_to_format:
+        variants_merged[col] = variants_merged[col].replace('.', np.nan).astype(float)
+        variants_merged[col] = variants_merged[col].fillna(np.nan)
+
     # Save to pickle
     # variants.to_pickle('./AM_pathogenic.pkl')
-    variants.to_pickle(args.output)
+    variants_merged.to_pickle(args.output)
 
-    print(variants.shape)
+    print(variants_merged.shape)
     print('Done.')
