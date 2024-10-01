@@ -2,7 +2,7 @@ import argparse
 import pandas as pd
 import numpy as np
 from pathlib import Path
-
+import multiprocessing
 
 def parsing(args: list=None) -> argparse.Namespace:
     """
@@ -52,6 +52,11 @@ def parsing(args: list=None) -> argparse.Namespace:
                         'start and end of the range of variants to process, separated '
                         'by a dash.'), type=validate_dir)
     
+    parser.add_argument('--cpus', help='Number of CPUs to use', type=int, default=1)
+    
+    parser.add_argument('--chunk_size', help='Chunk size to read the input file',
+                        type=int, default=100000)
+    
     return parser.parse_args(args)
 
 
@@ -86,86 +91,63 @@ def calculate_variants_per_job(nvariants:int, out_dir:Path, min_variants:int=50,
         fname.touch()
 
 
+def process_chunk(chunk, transcripts_refseq, transcripts_ensemble):
+    chunk['RefSeq_noversion'] = chunk['RefSeq'].str.split('.').str[0]
+    
+    def get_uniprot_ids(row):
+        uids = []
+        if not pd.isna(row['UNIPROT_ISOFORM']):
+            uids.append(row['UNIPROT_ISOFORM'])
+        
+        uids.extend(transcripts_refseq[
+            transcripts_refseq.ID_noversion == row['RefSeq_noversion']]['UniProtKB-AC'].values)
+        
+        uids.extend(transcripts_ensemble[
+            transcripts_ensemble.ID_noversion == row['Feature']]['UniProtKB-AC'].values)
+        
+        return list(dict.fromkeys(uids))
+    
+    chunk['UniProt_IDs'] = chunk.apply(get_uniprot_ids, axis=1)
+    
+    # Return only the rows with UniProt IDs
+    return chunk[chunk['UniProt_IDs'].apply(len) > 0]
+
+
 if __name__=='__main__':
 
     args = parsing()
 
-    # variants = pd.read_pickle('./05_variants.pkl')
-    variants = pd.read_pickle(args.input)
+    # Read the input file in chunks
+    chunksize = args.chunk_size  # Adjust based on available memory
+    chunks = pd.read_pickle(args.input, chunksize=chunksize)
 
-    print(f'{variants.shape} initial variants')
-
-    # Remove empty FLAGS column
-    variants = variants.drop(columns=['FLAGS'])
-
-    # See how many missing IDs in the UniProt database
-    # variants.UNIPROT_ISOFORM.isna().sum()
-    # Assume that there are missing ids in the UniProt database
-
-    # Search for IDs in the UniProt database
-    # Read human ID mapping from UniProt
-    # human_idmapping = pd.read_csv(
-    #     '/ibex/scratch/projects/c2102/databases/uniprot/2023_02/current_release/'
-    #     'knowledgebase/idmapping/by_organism/HUMAN_9606_idmapping.dat.gz',
-    #     sep='\t', names=['UniProtKB-AC', 'ID_type', 'ID'])
+    # Preprocess ID mapping data
     human_idmapping = pd.read_csv(args.idmapping, sep='\t',
                                   names=['UniProtKB-AC', 'ID_type', 'ID'])
 
     # Extract RefSeq and Ensembl IDs
     transcripts_refseq = human_idmapping[human_idmapping.ID_type == 'RefSeq_NT'].copy()
     transcripts_refseq = transcripts_refseq.drop(columns=['ID_type'])
+    transcripts_refseq['ID_noversion'] = transcripts_refseq['ID'].str.split('.').str[0]
 
     transcripts_ensemble = human_idmapping[human_idmapping.ID_type == 'Ensembl_TRS'].copy()
     transcripts_ensemble = transcripts_ensemble.drop(columns=['ID_type'])
-
-    # Remove transcript version numbers from the 'RefSeq' column
-    variants['RefSeq_noversion'] = variants['RefSeq'].str.split('.').str[0]
-
-    # Remove transcript version numbers from the 'ID' columns
-    transcripts_refseq['ID_noversion'] = transcripts_refseq['ID'].str.split('.').str[0]
     transcripts_ensemble['ID_noversion'] = transcripts_ensemble['ID'].str.split('.').str[0]
+    
+    # Process chunks in parallel
+    with multiprocessing.Pool(args.cpus) as pool:
+        results = pool.starmap(process_chunk, [(chunk, transcripts_refseq, transcripts_ensemble)
+                                                  for chunk in chunks])
 
+    # Combine results
+    variants = pd.concat(results, ignore_index=True)
 
-    # Make a dictionary to store all the UniProt IDs for each variant
-    uids = {}
-
-    # For each variant, get the UniProt IDs from:
-    # 1. The 'UNIPROT_ISOFORM' column
-    # 2. The transcripts_refseq dataframe, by looking up with the 'RefSeq_noversion' column
-    # 3. The transcripts_ensemble dataframe, by looking up with the 'Feature' column
-    for i, row in variants.iterrows():
-        # Use a list instead of a set, because we want to preserve the order
-        l = []
-        if not pd.isna(row['UNIPROT_ISOFORM']):
-            l.append(row['UNIPROT_ISOFORM'])
-
-        l.extend(transcripts_refseq[
-            transcripts_refseq.ID_noversion == row['RefSeq_noversion']]['UniProtKB-AC'].values)
-
-        l.extend(transcripts_ensemble[
-            transcripts_ensemble.ID_noversion == row['Feature']]['UniProtKB-AC'].values)
-        
-        uids[i] = list(dict.fromkeys(l))
-
-    variants['UniProt_IDs'] = pd.Series(uids)
-
-    # Remove variants with no UniProt IDs
-    select = variants['UniProt_IDs'].apply(lambda x: len(x)>0)
-    variants = variants[select]
+    # Remove variants with a range of amino acid positions changed (e.g. 1-3)
+    variants = variants[~variants.Protein_position.str.split('/').str[0].str.contains('-')]
     variants = variants.reset_index(drop=True)
 
+    print(f'{variants.shape[0]} variants with UniProt IDs')
 
-    # Remove variants that have a range of amino acid positions changed (e.g. 1-3)
-    select = (variants.Protein_position.str.split('/').str[0].str.split('-')
-            .apply(lambda x:len(x)>1))
-
-    variants = variants[~select]
-    variants = variants.reset_index(drop=True)
-
-
-    print(f'{variants.shape} variants with UniProt IDs')
-
-    # variants.to_pickle('./07_variants.pkl')
     variants.to_pickle(args.output)
     
     # Calcualte the number of variants per job

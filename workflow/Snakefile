@@ -318,6 +318,10 @@ checkpoint get_uniprot_ids:
     output:
         out_ranges=directory(RESULTS_DIR + "/{dataset}_annotations/07_ranges"),
         out_pickle=RESULTS_DIR + "/{dataset}_annotations/07_variants.pkl"
+    threads: 32
+    params:
+        chunk_size=100000
+        no_cpus=32
     container:
         "docker://gzmf/read_vcfs:0.1"
     log:
@@ -325,7 +329,8 @@ checkpoint get_uniprot_ids:
     shell:
         """
         python {SCRIPTS_DIR}/get_uniprot_ids.py {input} {UNIPROT_IDMAPPING} \
-        {output.out_pickle} {output.out_ranges} > {log} 2>&1
+        {output.out_pickle} {output.out_ranges} \
+        --cpus {params.no_cpus} --chunk_size {params.chunk_size}> {log} 2>&1
         """
 
 
@@ -338,6 +343,8 @@ rule find_pdbs:
         ranges=RESULTS_DIR + "/{dataset}_annotations/07_ranges/range_{j}"
     output:
         RESULTS_DIR + "/{dataset}_annotations/08_variants/11_variants_{j}.pkl"
+    resources:
+        mem_mb=lambda wc, input: max(10 * input.size_mb, 2000)
     container:
         "docker://gzmf/calculate_features:0.1"
     log:
