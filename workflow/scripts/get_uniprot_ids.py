@@ -119,7 +119,7 @@ if __name__=='__main__':
 
     # Read the input file in chunks
     chunksize = args.chunk_size  # Adjust based on available memory
-    chunks = pd.read_pickle(args.input, chunksize=chunksize)
+    chunks = pd.read_csv(args.input, chunksize=chunksize, index_col=0)
 
     # Preprocess ID mapping data
     human_idmapping = pd.read_csv(args.idmapping, sep='\t',

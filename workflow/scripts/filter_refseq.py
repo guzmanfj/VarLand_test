@@ -35,7 +35,7 @@ def parsing(args: list=None) -> argparse.Namespace:
 
     parser.add_argument('input', help='Input pickle file', type=validate_file)
     
-    parser.add_argument('output', help='Output pickle file', type=Path)
+    parser.add_argument('output', help='Output csv file', type=Path)
     
     return parser.parse_args(args)
 
@@ -69,8 +69,8 @@ if __name__=='__main__':
 
     print(variants.shape)
 
-    # variants.to_pickle('./05_variants.pkl')
-    variants.to_pickle(args.output)
+    # Save to csv
+    variants.to_csv(args.output, index=True)
 
     print('Done.')
 

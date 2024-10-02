@@ -292,12 +292,14 @@ rule filter_mane:
 
 rule filter_refseq:
     """
-    Filter variants with the RefSeq ID equal to the MANE ID
+    Filter variants with the RefSeq ID equal to the MANE ID.
+    On this step the output is a csv file because the next step will read it
+    in chunks.
     """
     input:
         RESULTS_DIR + "/{dataset}_annotations/04_mane.pkl"
     output:
-        RESULTS_DIR + "/{dataset}_annotations/05_variants.pkl"
+        RESULTS_DIR + "/{dataset}_annotations/05_variants.csv"
     container:
         "docker://gzmf/read_vcfs:0.1"
     log:
@@ -314,7 +316,7 @@ checkpoint get_uniprot_ids:
     the ranges to split the variants DataFrame in further steps.
     """
     input:
-        RESULTS_DIR + "/{dataset}_annotations/05_variants.pkl"
+        RESULTS_DIR + "/{dataset}_annotations/05_variants.csv"
     output:
         out_ranges=directory(RESULTS_DIR + "/{dataset}_annotations/07_ranges"),
         out_pickle=RESULTS_DIR + "/{dataset}_annotations/07_variants.pkl"
