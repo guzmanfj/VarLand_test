@@ -52,7 +52,7 @@ if __name__=='__main__':
     for d in chr_dirs:
         print(f'Reading {d}')
         # Data starts at line 38 (1-based)
-        df = pd.concat([pd.read_csv(f, sep='\t', header=35) for f in d.glob('*.vep')],
+        df = pd.concat([pd.read_csv(f, sep='\t', header=36) for f in d.glob('*.vep')],
                     ignore_index=True)
         chrom_dfs.append(df)
 

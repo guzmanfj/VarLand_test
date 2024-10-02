@@ -320,7 +320,7 @@ checkpoint get_uniprot_ids:
         out_pickle=RESULTS_DIR + "/{dataset}_annotations/07_variants.pkl"
     threads: 32
     params:
-        chunk_size=100000
+        chunk_size=100000,
         no_cpus=32
     container:
         "docker://gzmf/read_vcfs:0.1"
@@ -330,7 +330,7 @@ checkpoint get_uniprot_ids:
         """
         python {SCRIPTS_DIR}/get_uniprot_ids.py {input} {UNIPROT_IDMAPPING} \
         {output.out_pickle} {output.out_ranges} \
-        --cpus {params.no_cpus} --chunk_size {params.chunk_size}> {log} 2>&1
+        --cpus {params.no_cpus} --chunk_size {params.chunk_size} > {log} 2>&1
         """
 
 
