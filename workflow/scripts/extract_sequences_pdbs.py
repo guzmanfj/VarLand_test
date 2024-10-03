@@ -53,9 +53,7 @@ def extract_sequence(pdb_file: Path) -> str:
     m = b.PDBModel(str(pdb_file))
     sequence = m.sequence()
     
-    uid = pdb_file.stem.split('-')[1]
-    
-    return uid, sequence
+    return pdb_file, sequence
 
 
 if __name__=='__main__':
@@ -66,7 +64,7 @@ if __name__=='__main__':
     with Pool(args.cpus) as p:
         results = p.map(extract_sequence, pdb_files)
     
-    sequences = {uid: seq for uid, seq in results}
+    sequences = {str(p.name): s for p, s in results}
     
     with open(args.output, 'wb') as f:
         pickle.dump(sequences, f)
