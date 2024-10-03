@@ -48,7 +48,7 @@ if __name__=='__main__':
     chr_dirs = chr_dirs + [args.input / 'chrX_split', args.input / 'chrY_split']
 
     # Read one of the files and find the first line that starts with '#CHROM'
-    with open(chr_dirs[0] / 'chunk_aa.vep','r') as f:
+    with open(chr_dirs[0] / 'chunk_aa.vcf.vep','r') as f:
         for i, line in enumerate(f):
             if line.startswith('#CHROM'):
                 header_line = i

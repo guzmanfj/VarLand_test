@@ -381,7 +381,7 @@ def aggregate_output_catalytic(wildcards):
     return expand("{RESULTS_DIR}/{dataset}_annotations/09_catalytic/12_catalytic_residues_{j}.pkl",
                     RESULTS_DIR=RESULTS_DIR,
                     dataset=wildcards.dataset,
-                    j=glob_wildcards(os.path.join(checkpoint_output, "range_{j}")).j)
+                    j=glob_wildcards(os.path.join(checkpoint_output, "07_variants_{j}.pkl")).j)
 
 
 rule aggregate_catalytic:
@@ -515,21 +515,21 @@ def aggregate_output_features(wildcards):
     return expand("{RESULTS_DIR}/{dataset}_annotations/11_features/15_variants_{j}.pkl",
                     RESULTS_DIR=RESULTS_DIR,
                     dataset=wildcards.dataset,
-                    j=glob_wildcards(os.path.join(checkpoint_output, "range_{j}")).j)
+                    j=glob_wildcards(os.path.join(checkpoint_output, "07_variants_{j}.pkl")).j)
 
 def aggregate_output_foldx(wildcards):
     checkpoint_output = checkpoints.get_uniprot_ids.get(**wildcards).output[0]
     return expand("{RESULTS_DIR}/{dataset}_annotations/12_foldx/17_foldx_energies_{j}.pkl",
                     RESULTS_DIR=RESULTS_DIR,
                     dataset=wildcards.dataset,
-                    j=glob_wildcards(os.path.join(checkpoint_output, "range_{j}")).j)
+                    j=glob_wildcards(os.path.join(checkpoint_output, "07_variants_{j}.pkl")).j)
 
 def aggregate_output_dbnsfp(wildcards):
     checkpoint_output = checkpoints.get_uniprot_ids.get(**wildcards).output[0]
     return expand("{RESULTS_DIR}/{dataset}_annotations/13_dbnsfp/18_dbnsfp_variants_{j}.out",
                     RESULTS_DIR=RESULTS_DIR,
                     dataset=wildcards.dataset,
-                    j=glob_wildcards(os.path.join(checkpoint_output, "range_{j}")).j)
+                    j=glob_wildcards(os.path.join(checkpoint_output, "07_variants_{j}.pkl")).j)
 
 rule aggregate_features:
     """
