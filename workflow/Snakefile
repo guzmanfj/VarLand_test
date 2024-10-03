@@ -313,17 +313,17 @@ rule filter_refseq:
 checkpoint get_uniprot_ids:
     """
     Obtain the UniProt IDs for the variants. It also creates a directory with
-    the ranges to split the variants DataFrame in further steps.
+    the variants split in multiple DataFrames.
+
+    It is a checkpoint because it generates multiple output files.
     """
     input:
         RESULTS_DIR + "/{dataset}_annotations/05_variants.csv"
     output:
         out_ranges=directory(RESULTS_DIR + "/{dataset}_annotations/07_ranges"),
-        out_pickle=RESULTS_DIR + "/{dataset}_annotations/07_variants.pkl"
     threads: 32
     params:
-        chunk_size=100000,
-        no_cpus=32
+        chunk_size=100000
     container:
         "docker://gzmf/read_vcfs:0.1"
     log:
@@ -331,8 +331,8 @@ checkpoint get_uniprot_ids:
     shell:
         """
         python {SCRIPTS_DIR}/get_uniprot_ids.py {input} {UNIPROT_IDMAPPING} \
-        {output.out_pickle} {output.out_ranges} \
-        --cpus {params.no_cpus} --chunk_size {params.chunk_size} > {log} 2>&1
+        {output.out_ranges} --cpus {threads} \
+        --chunk_size {params.chunk_size} > {log} 2>&1
         """
 
 
@@ -341,10 +341,10 @@ rule find_pdbs:
     Find the PDBs for every variant
     """
     input:
-        pickle=RESULTS_DIR + "/{dataset}_annotations/07_variants.pkl",
-        ranges=RESULTS_DIR + "/{dataset}_annotations/07_ranges/range_{j}"
+        RESULTS_DIR + "/{dataset}_annotations/07_ranges/07_variants_{j}.pkl",
     output:
         RESULTS_DIR + "/{dataset}_annotations/08_variants/11_variants_{j}.pkl"
+    threads: 8
     resources:
         mem_mb=lambda wc, input: max(10 * input.size_mb, 2000)
     container:
@@ -353,8 +353,8 @@ rule find_pdbs:
         LOG_DIR + "/13_find_pdbs/{dataset}_{j}.log"
     shell:
         """
-        python {SCRIPTS_DIR}/find_pdbs.py {input.pickle} {wildcards.j} \
-        {ALPHAFOLD_DIR} {MANE_DIR} {output} > {log} 2>&1
+        python {SCRIPTS_DIR}/find_pdbs_optimized.py {input} \
+        {ALPHAFOLD_DIR} {MANE_DIR} {output} --cpus {threads} > {log} 2>&1
         """
 
 

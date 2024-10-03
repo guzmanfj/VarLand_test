@@ -174,51 +174,27 @@ if __name__ == '__main__':
     
     args = parsing()
 
-    # # Get the number of job from the arguments.
-    # job = int(sys.argv[1])
-    # commands_per_job = int(sys.argv[2])
-    
-    # # If results file already exists, exit
-    # if Path(f'./variants_pdbs/11_variants_{job}.pkl').exists():
-    #     print(f'Job {job} already done. Exiting.')
-    #     sys.exit()
-    
-    # Get the variants for this job
-    # all_variants = pd.read_pickle('./07_variants.pkl')
     all_variants = pd.read_pickle(args.input)
-    # indices = np.arange(0, len(all_variants), commands_per_job)
-    # start = indices[job]
-    # end = start + commands_per_job
+
     start = args.variants_ranges[0]
     end = args.variants_ranges[1]
     variants = all_variants.iloc[start:end].copy()
     del all_variants
     
     ## Search in the MANE database
-    # af_database = Path('/ibex/user/guzmanfj/databases/alphafold_mane')
     af_database = args.alphafold_mane_database
     pdbs = find_pdbs(variants, af_database)
-
-    # Save to pickle file
-    # with open(f'./pdb_paths/08_pdbs_{job}.pkl', 'wb') as f:
-    #     pickle.dump(pdbs, f)
 
     # Add the PDBs as a column to the variants df
     variants['PDB'] = pd.Series(pdbs)
 
     # Obtain the missing variants
     missing_variants = variants[variants.PDB.isna()]
-    # missing_variants.to_pickle(f'./missing_variants/09_missing_variants_{job}.pkl')
 
     if len(missing_variants) > 0:
         ## Search in the normal AlphaFold database
-        # af_database = Path('/ibex/user/guzmanfj/databases/alphafold_human_v4')
         af_database = args.alphafold_database
         missing_pdbs = find_pdbs(missing_variants, af_database)
-
-        # Save to pickle file
-        # with open(f'./pdb_paths/10_missing_pdbs_{job}.pkl', 'wb') as f:
-        #     pickle.dump(missing_pdbs, f)
 
         # Add column with the missing PDBs, and merge with the first one
         variants['PDB_af'] = pd.Series(missing_pdbs)

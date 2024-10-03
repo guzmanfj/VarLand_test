@@ -45,8 +45,6 @@ def parsing(args: list=None) -> argparse.Namespace:
     parser.add_argument('idmapping', help='UniProt ID mapping file',
                         type=validate_file )
     
-    parser.add_argument('output', help='Output pickle file', type=Path)
-    
     parser.add_argument('output_ranges', help=('Output directory with the ranges '
                         'of variants per job. It will contain files named with the '
                         'start and end of the range of variants to process, separated '
@@ -60,7 +58,7 @@ def parsing(args: list=None) -> argparse.Namespace:
     return parser.parse_args(args)
 
 
-def calculate_variants_per_job(nvariants:int, out_dir:Path, min_variants:int=50,
+def calculate_variants_per_job(nvariants:int, min_variants:int=50,
                                max_jobs:int=100) -> None:
     """
     I have to split the variants in smaller chunks to run the next script in
@@ -73,7 +71,6 @@ def calculate_variants_per_job(nvariants:int, out_dir:Path, min_variants:int=50,
     
     Args:
         nvariants (int): total number of variants
-        out_dir (Path): output directory to write the ranges
         min_variants (int): minimum number of variants to run in each job
         max_jobs (int): maximum number of jobs to run in parallel
     """
@@ -84,11 +81,13 @@ def calculate_variants_per_job(nvariants:int, out_dir:Path, min_variants:int=50,
     njobs = int(np.ceil(nvariants/variants_per_job))
     
     # Create empty files with the ranges as the name
+    ranges = []
     for i in range(njobs):
         start = i*variants_per_job
         end = min((i+1)*variants_per_job, nvariants)
-        fname = out_dir/f'range_{start}-{end}'
-        fname.touch()
+        ranges.append((start, end))
+    
+    return ranges
 
 
 def process_chunk(chunk, transcripts_refseq, transcripts_ensemble):
@@ -133,7 +132,7 @@ if __name__=='__main__':
     transcripts_ensemble = human_idmapping[human_idmapping.ID_type == 'Ensembl_TRS'].copy()
     transcripts_ensemble = transcripts_ensemble.drop(columns=['ID_type'])
     transcripts_ensemble['ID_noversion'] = transcripts_ensemble['ID'].str.split('.').str[0]
-    
+
     # Process chunks in parallel
     with multiprocessing.Pool(args.cpus) as pool:
         results = pool.starmap(process_chunk, [(chunk, transcripts_refseq, transcripts_ensemble)
@@ -147,11 +146,13 @@ if __name__=='__main__':
     variants = variants.reset_index(drop=True)
 
     print(f'{variants.shape[0]} variants with UniProt IDs')
-
-    variants.to_pickle(args.output)
     
     # Calcualte the number of variants per job
-    calculate_variants_per_job(variants.shape[0], args.output_ranges)
+    ranges = calculate_variants_per_job(variants.shape[0])
+    
+    # Save split variants according to the ranges
+    for i, (start, end) in enumerate(ranges):
+        variants.iloc[start:end].to_pickle(args.output_ranges/f'07_variants_{start}-{end}.pkl')
 
     print('Done!')
 
