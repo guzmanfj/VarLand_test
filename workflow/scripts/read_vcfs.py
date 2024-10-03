@@ -47,12 +47,18 @@ if __name__=='__main__':
     chr_dirs = [args.input / f'chr{i}_split' for i in range(1, 23)]
     chr_dirs = chr_dirs + [args.input / 'chrX_split', args.input / 'chrY_split']
 
+    # Read one of the files and find the first line that starts with '#CHROM'
+    with open(chr_dirs[0] / 'chunk_aa.vep','r') as f:
+        for i, line in enumerate(f):
+            if line.startswith('#CHROM'):
+                header_line = i
+    
     # Read all files ending with .vep for each chromosome directory
     chrom_dfs = []
     for d in chr_dirs:
         print(f'Reading {d}')
         # Data starts at line 38 (1-based)
-        df = pd.concat([pd.read_csv(f, sep='\t', header=36) for f in d.glob('*.vep')],
+        df = pd.concat([pd.read_csv(f, sep='\t', header=header_line) for f in d.glob('*.vep')],
                     ignore_index=True)
         chrom_dfs.append(df)
 
