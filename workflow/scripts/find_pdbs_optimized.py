@@ -3,7 +3,7 @@ import pandas as pd
 from pathlib import Path
 import re
 import numpy as np
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from multiprocessing import Pool
 from functools import partial
 import mmap
@@ -85,11 +85,14 @@ def get_model_number(aapos:float, models:list):
         return quotient
 
 
-def process_variant(row: pd.Series, uniprot_pdb_map: Dict[str, List[Path]],
+def process_variant(row_tup: Tuple[int, pd.Series], uniprot_pdb_map: Dict[str, List[Path]],
                     af_sequences:Dict[str, str]) -> Path:
     """
     Process a single variant
     """
+    ind = row_tup[0]
+    row = row_tup[1]
+    pdbmatch = np.nan
     for uidp in row['UniProt_IDs']:
         uid = uidp.split('-')[0]
         if uid not in uniprot_pdb_map:
@@ -102,7 +105,7 @@ def process_variant(row: pd.Series, uniprot_pdb_map: Dict[str, List[Path]],
         if len(pdb_files) == 1:
             seq = af_sequences[pdb_files[0].name]
             if check_sequence(seq, seq_length, aa, aa_pos):
-                return pdb_files[0]
+                pdbmatch = pdb_files[0]
         else:
             # There is more than 1 pdb file for this UniProt ID
             # select the correct one based on the amino acid position
@@ -122,9 +125,9 @@ def process_variant(row: pd.Series, uniprot_pdb_map: Dict[str, List[Path]],
             # Check if the sequence matches
             seq = af_sequences[pdb_files[mindex].name]
             if check_sequence(seq, fragment_length, aa, aa_pos):
-                return pdb_files[mindex]
+                pdbmatch = pdb_files[mindex]
     
-    return np.nan
+    return ind, pdbmatch
 
 
 def find_pdbs_parallel(variants: pd.DataFrame, uniprot_pdb_map: Dict[str, List[Path]],
@@ -134,9 +137,9 @@ def find_pdbs_parallel(variants: pd.DataFrame, uniprot_pdb_map: Dict[str, List[P
     """
     with Pool(num_processes) as pool:
         results = pool.map(partial(process_variant, uniprot_pdb_map=uniprot_pdb_map,
-                                   af_sequences=af_sequences), 
-                           [row for _, row in variants.iterrows()])
-    return {i: path for i, path in enumerate(results)}
+                                   af_sequences=af_sequences),
+                           variants.iterrows())
+    return {i: path for i, path in results}
 
 if __name__ == '__main__':
     args = parsing()
