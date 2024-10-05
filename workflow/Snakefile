@@ -14,6 +14,8 @@ MANE_DIR = config["mane_dir"]
 DSSP_ALPHAFOLD = config["dssp_alphafold"]
 DSSP_MANE = config["dssp_mane"]
 PANTHER = config["panther"]
+PDBMODELS = config["pdbmodels"]
+DSSPS = config["dssps"]
 
 chromosomes = ["chr" + str(i) for i in range(1, 23)] + ["chrX", "chrY"]
 MAX_VARIANTS = config["max_variants_per_vep_run"]
@@ -445,6 +447,7 @@ rule calculate_features:
         catalytic=RESULTS_DIR + "/{dataset}_annotations/13_catalytic_residues.pkl"
     output:
         RESULTS_DIR + "/{dataset}_annotations/11_features/15_variants_{j}.pkl"
+    threads: 8
     container:
         "docker://gzmf/calculate_features:0.1"
     log:
@@ -452,7 +455,7 @@ rule calculate_features:
     shell:
         """
         python {SCRIPTS_DIR}/calculate_features.py {input.variants} \
-        {input.catalytic} {output} > {log} 2>&1
+        {input.catalytic} {PDBMODELS} {DSSPS} {output} --cpus {threads} > {log} 2>&1
         """
 
 rule run_foldx:
