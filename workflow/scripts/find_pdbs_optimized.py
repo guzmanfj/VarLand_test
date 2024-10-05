@@ -106,6 +106,7 @@ def process_variant(row_tup: Tuple[int, pd.Series], uniprot_pdb_map: Dict[str, L
             seq = af_sequences[pdb_files[0].name]
             if check_sequence(seq, seq_length, aa, aa_pos):
                 pdbmatch = pdb_files[0]
+                break
         else:
             # There is more than 1 pdb file for this UniProt ID
             # select the correct one based on the amino acid position
@@ -126,6 +127,7 @@ def process_variant(row_tup: Tuple[int, pd.Series], uniprot_pdb_map: Dict[str, L
             seq = af_sequences[pdb_files[mindex].name]
             if check_sequence(seq, fragment_length, aa, aa_pos):
                 pdbmatch = pdb_files[mindex]
+                break
     
     return ind, pdbmatch
 
@@ -147,7 +149,7 @@ if __name__ == '__main__':
     
     af_sequences = pd.read_pickle(args.alphafold_database/'alphafold_human_v4_sequences.pkl')
     af_mane_sequences = pd.read_pickle(args.alphafold_mane_database/'alphafold_mane_sequences.pkl')
-    af_uidmap = pd.read_pickle(args.alphafold_database/'alphafold_human_v4_uidmap.pkl')
+    af_uidmap = pd.read_pickle(args.alphafold_database/'alphafold_uidmap.pkl')
     af_mane_uidmap = pd.read_pickle(args.alphafold_mane_database/'alphafold_mane_uidmap.pkl')
     
     # Search in the MANE database
