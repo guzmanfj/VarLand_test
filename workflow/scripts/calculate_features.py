@@ -17,6 +17,9 @@ from biskit import PDBModel
 from multiprocessing import Pool
 from functools import partial
 
+import logging
+logging.getLogger().setLevel(logging.INFO)
+
 from structure_features.contactsPdb import get_contacts
 
 
@@ -84,6 +87,7 @@ def process_variant(row_tup: Tuple[int, pd.Series],
     m = pdbmodels[str(var.PDB_path)]
     
     # Calculate the average of the pLDDT values for a 5-residue window around the residue
+    logging.info(f'Calculating pLDDT for variant {ind}...')
     plddt = m.atom2resProfile('temperature_factor')
     if resnumber < 3:
         plddt = plddt[0:resnumber+2].mean()
@@ -93,6 +97,7 @@ def process_variant(row_tup: Tuple[int, pd.Series],
         plddt = plddt[resnumber-3:resnumber+2].mean()
     
     # Calculate intra-molecular contacts 6 Angstroms around the residue
+    logging.info(f'Calculating contacts for variant {ind}...')
     atom_contacts = get_contacts(m, resnumber, 6)
     # The residues are 1-indexed
     residue_contacts = np.unique(m.atoms['residue_number'][atom_contacts])
@@ -105,6 +110,7 @@ def process_variant(row_tup: Tuple[int, pd.Series],
     catalytic_contacts = catalytic_contacts + 200 * (model_no - 1)
     
     # See if the residue or any of the contacts are in the catalytic sites
+    logging.info(f'Checking for catalytic residues for variant {ind}...')
     var_uids = [uid.split('-')[0] for uid in var.UniProt_IDs]
     protein_catalytic_sites = catalytic_sites[catalytic_sites.uniprot_ID.isin(var_uids)]
     if not protein_catalytic_sites.empty:
@@ -118,6 +124,7 @@ def process_variant(row_tup: Tuple[int, pd.Series],
         is_catalytic = False
     
     # Get the secondary structure of the residue from DSSP file
+    logging.info(f'Getting secondary structure for variant {ind}...')
     dssp = dssps[str(var.DSSP_path)]
     
     ss = dssp['ss']
@@ -154,12 +161,14 @@ if __name__ == '__main__':
     
     args = parsing()
 
+    logging.info('Reading the data...')
     variants = pd.read_pickle(args.input)
     catalytic_sites = pd.read_pickle(args.catalytic_sites_pickle)
     pdbmodels = pd.read_pickle(args.pdbmodels_pickle)
     dssps = pd.read_pickle(args.dssps_pickle)
 
     # Calculate the features
+    logging.info('Calculating the features...')
     features = calculate_features_parallel(variants, args.cpus, pdbmodels, dssps,
                                            catalytic_sites)
 
