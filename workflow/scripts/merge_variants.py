@@ -85,7 +85,7 @@ if __name__ == '__main__':
     variants = pd.concat(variants)
 
     # Clean secondary structure column
-    variants.secondary_structure.replace(' ', np.nan, inplace=True)
+    variants['secondary_structure'] = variants['secondary_structure'].replace(' ', np.nan)
 
     # Remove from the contacts residues less than 6 residues away in the sequence:
     # Create a dictionary with non-adjacent contacts for every variant.

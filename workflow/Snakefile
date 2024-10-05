@@ -447,11 +447,11 @@ rule calculate_features:
     """
     input:
         variants=RESULTS_DIR + "/{dataset}_annotations/10_preprocessed/14_variants_{j}.pkl",
-        catalytic=RESULTS_DIR + "/{dataset}_annotations/13_catalytic_residues.pkl"
+        catalytic=RESULTS_DIR + "/{dataset}_annotations/13_catalytic_residues.pkl",
+        pdbmodels=PDBMODELS,
+        dssps=DSSPS
     output:
         RESULTS_DIR + "/{dataset}_annotations/11_features/15_variants_{j}.pkl"
-    resources:
-        threads=8
     container:
         "docker://gzmf/calculate_features:0.1"
     log:
@@ -459,7 +459,7 @@ rule calculate_features:
     shell:
         """
         python {SCRIPTS_DIR}/calculate_features.py {input.variants} \
-        {input.catalytic} {PDBMODELS} {DSSPS} {output} --cpus {resources.threads} > {log} 2>&1
+        {input.catalytic} {PDBMODELS} {DSSPS} {output} > {log} 2>&1
         """
 
 rule run_foldx:

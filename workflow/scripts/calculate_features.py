@@ -16,11 +16,9 @@ from typing import Tuple, Dict, List
 from biskit import PDBModel
 from multiprocessing import Pool
 from functools import partial
+import copy
 
-import logging
-logging.getLogger().setLevel(logging.INFO)
-
-from structure_features.contactsPdb import get_contacts
+import biskit.mathUtils as mu
 
 
 def parsing(args: list=None) -> argparse.Namespace:
@@ -64,9 +62,41 @@ def parsing(args: list=None) -> argparse.Namespace:
     
     parser.add_argument('output', help='Output pickle file', type=Path)
     
-    parser.add_argument('--cpus', help='Number of CPUs to use', type=int, default=4)
-    
     return parser.parse_args(args)
+
+
+def get_contacts(chain_m, pdb_resNumber, distances=[6]):
+    """
+    Gets residue contacts 
+
+    Input
+    -----
+    args : chain_m (biskit.pdbModel.PDBModel)
+                'biskit.pdbModel.PDBModel' type variable with information of 
+                the chain model
+        
+    Returns :
+              numpy.ndarray
+    """
+    
+    # get index of target amino acid position
+    res_numbers = chain_m.atom2resProfile('residue_number')
+    res = (res_numbers == pdb_resNumber).nonzero()[0][0]
+    
+    # get target amino acid indices
+    atoms_indices = chain_m.res2atomIndices([res])
+    # get target amino acid coordinates
+    atoms_coor = np.take(chain_m.xyz, atoms_indices, axis = 0)
+    
+    # Calculate distance between atoms of interest and all other atoms in chain
+    dist = mu.pairwiseDistances(atoms_coor, chain_m.xyz)
+    
+    contacts = []
+    for d in distances:
+        # Take atoms with at most `distance` angstroms of distance to the target amino acid atoms
+        contacts.append(np.unique((dist < d).nonzero()[1]))
+    
+    return contacts
 
 
 def process_variant(row_tup: Tuple[int, pd.Series],
@@ -84,10 +114,9 @@ def process_variant(row_tup: Tuple[int, pd.Series],
     model_no = int(re.search(r'-F(\d+)-', var.PDB_path.stem).group(1))
     resnumber = var.Residue_position - 200 * (model_no - 1)
     
-    m = pdbmodels[str(var.PDB_path)]
+    m = copy.deepcopy(pdbmodels[str(var.PDB_path)])
     
     # Calculate the average of the pLDDT values for a 5-residue window around the residue
-    logging.info(f'Calculating pLDDT for variant {ind}...')
     plddt = m.atom2resProfile('temperature_factor')
     if resnumber < 3:
         plddt = plddt[0:resnumber+2].mean()
@@ -97,20 +126,17 @@ def process_variant(row_tup: Tuple[int, pd.Series],
         plddt = plddt[resnumber-3:resnumber+2].mean()
     
     # Calculate intra-molecular contacts 6 Angstroms around the residue
-    logging.info(f'Calculating contacts for variant {ind}...')
-    atom_contacts = get_contacts(m, resnumber, 6)
+    atom_contacts_6, atom_contacts_8 = get_contacts(m, resnumber, [6,8])
     # The residues are 1-indexed
-    residue_contacts = np.unique(m.atoms['residue_number'][atom_contacts])
+    residue_contacts = np.unique(m.atoms['residue_number'][atom_contacts_6])
     # Correct the residue numbers back to the original position
     residue_contacts = residue_contacts + 200 * (model_no - 1)
     
     # Calculate contacts 8 Angstroms around the residue to check for catalytic residues
-    atom_contacts = get_contacts(m, resnumber, 8)
-    catalytic_contacts = np.unique(m.atoms['residue_number'][atom_contacts])
+    catalytic_contacts = np.unique(m.atoms['residue_number'][atom_contacts_8])
     catalytic_contacts = catalytic_contacts + 200 * (model_no - 1)
     
     # See if the residue or any of the contacts are in the catalytic sites
-    logging.info(f'Checking for catalytic residues for variant {ind}...')
     var_uids = [uid.split('-')[0] for uid in var.UniProt_IDs]
     protein_catalytic_sites = catalytic_sites[catalytic_sites.uniprot_ID.isin(var_uids)]
     if not protein_catalytic_sites.empty:
@@ -124,7 +150,6 @@ def process_variant(row_tup: Tuple[int, pd.Series],
         is_catalytic = False
     
     # Get the secondary structure of the residue from DSSP file
-    logging.info(f'Getting secondary structure for variant {ind}...')
     dssp = dssps[str(var.DSSP_path)]
     
     ss = dssp['ss']
@@ -136,7 +161,6 @@ def process_variant(row_tup: Tuple[int, pd.Series],
     
 
 def calculate_features_parallel(variants: pd.DataFrame,
-                                num_processes: int,
                                 pdbmodels: Dict[str, PDBModel],
                                 dssps: Dict[str, Dict[str, str]],
                                 catalytic_sites: pd.DataFrame
@@ -144,10 +168,8 @@ def calculate_features_parallel(variants: pd.DataFrame,
     """
     Calculate the features using parallel processing
     """
-    with Pool(num_processes) as pool:
-        results = pool.map(partial(process_variant, pdbmodels=pdbmodels, dssps=dssps,
-                                   catalytic_sites=catalytic_sites),
-                           variants.iterrows())
+    results = [process_variant(row_tup, pdbmodels, dssps, catalytic_sites) \
+                for row_tup in variants.iterrows()]
     
     features = pd.DataFrame(results, columns=['index', 'pLDDT', 'intra_contacts',
                                                 'is_catalytic', 'secondary_structure',
@@ -161,15 +183,13 @@ if __name__ == '__main__':
     
     args = parsing()
 
-    logging.info('Reading the data...')
     variants = pd.read_pickle(args.input)
     catalytic_sites = pd.read_pickle(args.catalytic_sites_pickle)
     pdbmodels = pd.read_pickle(args.pdbmodels_pickle)
     dssps = pd.read_pickle(args.dssps_pickle)
 
     # Calculate the features
-    logging.info('Calculating the features...')
-    features = calculate_features_parallel(variants, args.cpus, pdbmodels, dssps,
+    features = calculate_features_parallel(variants, pdbmodels, dssps,
                                            catalytic_sites)
 
     # Add the dictionaries to the dataframe
