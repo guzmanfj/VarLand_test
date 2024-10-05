@@ -156,7 +156,8 @@ rule run_vep:
         RESULTS_DIR + "/{dataset}_chrs/{chromosome}_split/chunk_{i}.vcf"
     output:
         RESULTS_DIR + "/{dataset}_chrs/{chromosome}_split/chunk_{i}.vcf.vep"
-    threads: 4
+    resources:
+        threads=4
     container:
         "docker://ensemblorg/ensembl-vep:release_111.0"
     log:
@@ -170,7 +171,7 @@ rule run_vep:
         --assembly GRCh38 \
         --species homo_sapiens \
         --offline --cache --cache_version 111 \
-        --fork 4 --format vcf --total_length --vcf \
+        --fork {resources.threads} --format vcf --total_length --vcf \
         --uniprot \
         --mane \
         --mane_select \
@@ -322,8 +323,9 @@ checkpoint get_uniprot_ids:
     input:
         RESULTS_DIR + "/{dataset}_annotations/05_variants.csv"
     output:
-        out_ranges=directory(RESULTS_DIR + "/{dataset}_annotations/07_ranges"),
-    threads: 32
+        out_ranges=directory(RESULTS_DIR + "/{dataset}_annotations/07_ranges")
+    resources:
+        threads=32
     params:
         chunk_size=100000
     container:
@@ -333,7 +335,7 @@ checkpoint get_uniprot_ids:
     shell:
         """
         python {SCRIPTS_DIR}/get_uniprot_ids.py {input} {UNIPROT_IDMAPPING} \
-        {output.out_ranges} --cpus {threads} \
+        {output.out_ranges} --cpus {resources.threads} \
         --chunk_size {params.chunk_size} > {log} 2>&1
         """
 
@@ -346,7 +348,8 @@ rule find_pdbs:
         RESULTS_DIR + "/{dataset}_annotations/07_ranges/07_variants_{j}.pkl",
     output:
         RESULTS_DIR + "/{dataset}_annotations/08_variants/11_variants_{j}.pkl"
-    threads: 8
+    resources:
+        threads=8
     resources:
         mem_mb=lambda wc, input: max(10 * input.size_mb, 2000)
     container:
@@ -356,7 +359,7 @@ rule find_pdbs:
     shell:
         """
         python {SCRIPTS_DIR}/find_pdbs_optimized.py {input} \
-        {ALPHAFOLD_DIR} {MANE_DIR} {output} --cpus {threads} > {log} 2>&1
+        {ALPHAFOLD_DIR} {MANE_DIR} {output} --cpus {resources.threads} > {log} 2>&1
         """
 
 
@@ -447,7 +450,8 @@ rule calculate_features:
         catalytic=RESULTS_DIR + "/{dataset}_annotations/13_catalytic_residues.pkl"
     output:
         RESULTS_DIR + "/{dataset}_annotations/11_features/15_variants_{j}.pkl"
-    threads: 8
+    resources:
+        threads=8
     container:
         "docker://gzmf/calculate_features:0.1"
     log:
@@ -455,7 +459,7 @@ rule calculate_features:
     shell:
         """
         python {SCRIPTS_DIR}/calculate_features.py {input.variants} \
-        {input.catalytic} {PDBMODELS} {DSSPS} {output} --cpus {threads} > {log} 2>&1
+        {input.catalytic} {PDBMODELS} {DSSPS} {output} --cpus {resources.threads} > {log} 2>&1
         """
 
 rule run_foldx:
