@@ -55,6 +55,9 @@ def parsing(args: list=None) -> argparse.Namespace:
     parser.add_argument('--chunk_size', help='Chunk size to read the input file',
                         type=int, default=100000)
     
+    parser.add_argument('--max_jobs', help=('Maximum number of files to divide '
+                                'the variants into.'), type=int, default=100)
+    
     return parser.parse_args(args)
 
 
@@ -148,7 +151,7 @@ if __name__=='__main__':
     print(f'{variants.shape[0]} variants with UniProt IDs')
     
     # Calcualte the number of variants per job
-    ranges = calculate_variants_per_job(variants.shape[0])
+    ranges = calculate_variants_per_job(variants.shape[0], max_jobs=args.max_jobs)
     
     # Save split variants according to the ranges
     for i, (start, end) in enumerate(ranges):
