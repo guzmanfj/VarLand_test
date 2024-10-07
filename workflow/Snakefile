@@ -2,6 +2,8 @@ import itertools
 import string
 import numpy as np
 
+localrules: aggregate_vep, aggregate_catalytic, aggregate_features
+
 configfile: "config/config.yml"
 
 RESULTS_DIR = config["results_dir"]
@@ -36,13 +38,18 @@ rule targets:
 
 
 rule pysam_compress:
-    """res
+    """
     Compress the VCF file using pysam
     """
     input:
         lambda wildcards: config["datasets"][wildcards.dataset]
     output:
         RESULTS_DIR + "/{dataset}.vcf.bgz"
+    threads: 1
+    resources:
+        runtime=30,
+        mem_mb=4000,
+        nodes=1
     container:
         "docker://gzmf/pysam_compress:0.1"
     log:
@@ -52,6 +59,7 @@ rule pysam_compress:
         python {SCRIPTS_DIR}/pysam_compress.py {input} {output} > {log} 2>&1
         """
 
+
 rule tabix_index:
     """
     Index the VCF file using tabix
@@ -60,6 +68,11 @@ rule tabix_index:
         RESULTS_DIR + "/{dataset}.vcf.bgz"
     output:
         RESULTS_DIR + "/{dataset}.vcf.bgz.tbi"
+    threads: 1
+    resources:
+        runtime=30,
+        mem_mb=4000,
+        nodes=1
     container:
         "docker://gzmf/tabix_index:0.1"
     log:
@@ -79,6 +92,11 @@ rule split_chromosomes:
         tbi=RESULTS_DIR + "/{dataset}.vcf.bgz.tbi"
     output:
         RESULTS_DIR + "/{dataset}_chrs/{chromosome}.vcf"
+    threads: 1
+    resources:
+        runtime=30,
+        mem_mb=4000,
+        nodes=1
     params:
         out_dir=RESULTS_DIR + "/{dataset}_chrs"
     container:
@@ -101,6 +119,11 @@ rule export_variants:
         vcf=RESULTS_DIR + "/{dataset}_chrs/{chromosome}.vcf"
     output:
         RESULTS_DIR + "/{dataset}_chrs/{chromosome}_variants.txt"
+    threads: 1
+    resources:
+        runtime=30,
+        mem_mb=4000,
+        nodes=1
     container:
         "docker://staphb/bcftools:1.19"
     log:
@@ -120,6 +143,11 @@ checkpoint split_variants:
         RESULTS_DIR + "/{dataset}_chrs/{chromosome}_variants.txt"
     output:
         split_dir=directory(RESULTS_DIR + "/{dataset}_chrs/{chromosome}_split")
+    threads: 1
+    resources:
+        runtime=30,
+        mem_mb=2000,
+        nodes=1
     params:
         max_variants=MAX_VARIANTS,
         output_dir=RESULTS_DIR + "/{dataset}_chrs/{chromosome}_split"
@@ -139,6 +167,11 @@ rule extract_variants:
         chunk=RESULTS_DIR + "/{dataset}_chrs/{chromosome}_split/chunk_{i}"
     output:
         RESULTS_DIR + "/{dataset}_chrs/{chromosome}_split/chunk_{i}.vcf"
+    threads: 1
+    resources:
+        runtime=30,
+        mem_mb=4000,
+        nodes=1
     container:
         "docker://staphb/bcftools:1.19"
     log:
@@ -157,6 +190,10 @@ rule run_vep:
     output:
         RESULTS_DIR + "/{dataset}_chrs/{chromosome}_split/chunk_{i}.vcf.vep"
     threads: 4
+    resources:
+        runtime=60,
+        mem_mb=8000,
+        nodes=1
     container:
         "docker://ensemblorg/ensembl-vep:release_111.0"
     log:
@@ -207,6 +244,7 @@ rule aggregate_vep:
         aggregate_input
     params:
         chrs_dir=RESULTS_DIR + "/{dataset}_chrs"
+    threads: 1
     output:
         RESULTS_DIR + "/{dataset}_chrs/{chromosome}_vep_done"
     shell:
@@ -225,7 +263,12 @@ rule read_vcfs:
     params:
         chrs_dir=RESULTS_DIR + "/{dataset}_chrs"
     output:
-        out_pickle=RESULTS_DIR + "/{dataset}_annotations/01_all_variants.pkl",
+        out_pickle=RESULTS_DIR + "/{dataset}_annotations/01_all_variants.pkl"
+    threads: 1
+    resources:
+        runtime=120,
+        mem_mb=16000,
+        nodes=1
     container:
         "docker://gzmf/read_vcfs:0.1"
     log:
@@ -246,6 +289,11 @@ rule process_infos:
         infos=SCRIPTS_DIR + "/info_fields.txt"
     output:
         RESULTS_DIR + "/{dataset}_annotations/02_variants.pkl"
+    threads: 1
+    resources:
+        runtime=120,
+        mem_mb=16000,
+        nodes=1
     container:
         "docker://gzmf/read_vcfs:0.1"
     log:
@@ -264,6 +312,11 @@ rule filter_missense:
         RESULTS_DIR + "/{dataset}_annotations/02_variants.pkl"
     output:
         RESULTS_DIR + "/{dataset}_annotations/03_missense.pkl"
+    threads: 1
+    resources:
+        runtime=120,
+        mem_mb=16000,
+        nodes=1
     container:
         "docker://gzmf/read_vcfs:0.1"
     log:
@@ -282,6 +335,11 @@ rule filter_mane:
         RESULTS_DIR + "/{dataset}_annotations/03_missense.pkl"
     output:
         RESULTS_DIR + "/{dataset}_annotations/04_mane.pkl"
+    threads: 1
+    resources:
+        runtime=120,
+        mem_mb=16000,
+        nodes=1
     container:
         "docker://gzmf/read_vcfs:0.1"
     log:
@@ -302,6 +360,11 @@ rule filter_refseq:
         RESULTS_DIR + "/{dataset}_annotations/04_mane.pkl"
     output:
         RESULTS_DIR + "/{dataset}_annotations/05_variants.csv"
+    threads: 1
+    resources:
+        runtime=120,
+        mem_mb=16000,
+        nodes=1
     container:
         "docker://gzmf/read_vcfs:0.1"
     log:
@@ -323,7 +386,11 @@ checkpoint get_uniprot_ids:
         RESULTS_DIR + "/{dataset}_annotations/05_variants.csv"
     output:
         out_ranges=directory(RESULTS_DIR + "/{dataset}_annotations/07_ranges")
-    threads: workflow.cores
+    threads: 128
+    resources:
+        runtime=180,
+        mem_mb=16000,
+        nodes=1
     params:
         chunk_size=100000
     container:
@@ -348,7 +415,9 @@ rule find_pdbs:
         RESULTS_DIR + "/{dataset}_annotations/08_variants/11_variants_{j}.pkl"
     threads: 8
     resources:
-        mem_mb=lambda wc, input: max(10 * input.size_mb, 2000)
+        mem_mb=lambda wc, input: max(10 * input.size_mb, 2000),
+        runtime=120,
+        nodes=1
     container:
         "docker://gzmf/calculate_features:0.1"
     log:
@@ -368,6 +437,11 @@ rule get_catalytic:
         RESULTS_DIR + "/{dataset}_annotations/08_variants/11_variants_{j}.pkl"
     output:
         RESULTS_DIR + "/{dataset}_annotations/09_catalytic/12_catalytic_residues_{j}.pkl"
+    threads: 1
+    resources:
+        runtime=60,
+        mem_mb=4000,
+        nodes=1
     container:
         "docker://gzmf/get_catalytic:0.1"
     log:
@@ -395,6 +469,7 @@ rule aggregate_catalytic:
         aggregate_output_catalytic
     output:
         RESULTS_DIR + "/{dataset}_annotations/09_catalytic_done"
+    threads: 1
     shell:
         "echo {input} > {output}"
 
@@ -411,6 +486,11 @@ rule combine_catalytic:
         RESULTS_DIR + "/{dataset}_annotations/09_catalytic"
     output:
         RESULTS_DIR + "/{dataset}_annotations/13_catalytic_residues.pkl"
+    threads: 1
+    resources:
+        runtime=120,
+        mem_mb=16000,
+        nodes=1
     container:
         "docker://gzmf/read_vcfs:0.1"
     log:
@@ -428,6 +508,11 @@ rule preprocess_variants:
         RESULTS_DIR + "/{dataset}_annotations/08_variants/11_variants_{j}.pkl"
     output:
         RESULTS_DIR + "/{dataset}_annotations/10_preprocessed/14_variants_{j}.pkl"
+    threads: 1
+    resources:
+        runtime=120,
+        mem_mb=16000,
+        nodes=1
     container:
         "docker://gzmf/calculate_features:0.1"
     log:
@@ -449,6 +534,11 @@ rule calculate_features:
         dssps=DSSPS
     output:
         RESULTS_DIR + "/{dataset}_annotations/11_features/15_variants_{j}.pkl"
+    threads: 1
+    resources:
+        runtime=60,
+        mem_mb=4000,
+        nodes=1
     container:
         "docker://gzmf/calculate_features:0.1"
     log:
@@ -467,6 +557,11 @@ rule run_foldx:
         RESULTS_DIR + "/{dataset}_annotations/10_preprocessed/14_variants_{j}.pkl"
     output:
         RESULTS_DIR + "/{dataset}_annotations/12_foldx/17_foldx_energies_{j}.pkl"
+    threads: 1
+    resources:
+        runtime=120,
+        mem_mb=4000,
+        nodes=1
     container:
         "docker://gzmf/run_foldx:0.2"
     log:
@@ -484,6 +579,11 @@ rule write_for_dbnsfp:
         RESULTS_DIR + "/{dataset}_annotations/10_preprocessed/14_variants_{j}.pkl"
     output:
         RESULTS_DIR + "/{dataset}_annotations/13_dbnsfp/18_dbnsfp_variants_{j}.in"
+    threads: 1
+    resources:
+        runtime=30,
+        mem_mb=4000,
+        nodes=1
     container:
         "docker://gzmf/read_vcfs:0.1"
     log:
@@ -502,8 +602,11 @@ rule run_dbnsfp:
     output:
         fout=RESULTS_DIR + "/{dataset}_annotations/13_dbnsfp/18_dbnsfp_variants_{j}.out",
         ferr=RESULTS_DIR + "/{dataset}_annotations/13_dbnsfp/18_dbnsfp_variants_{j}.out.err"
+    threads: 1
     resources:
-        mem_mb=4096
+        mem_mb=4096,
+        runtime=120,
+        nodes=1
     container:
         "docker://ibmjava:8-sfj"
     log:
@@ -546,6 +649,7 @@ rule aggregate_features:
         aggregate_output_dbnsfp
     output:
         RESULTS_DIR + "/{dataset}_annotations/18_features_done"
+    threads: 1
     shell:
         "echo {input} > {output}"
 
@@ -564,6 +668,11 @@ rule merge_variants:
         dbnsfp_dir=RESULTS_DIR + "/{dataset}_annotations/13_dbnsfp"
     output:
         RESULTS_DIR + "/{dataset}_annotations/19_merged.pkl"
+    threads: 1
+    resources:
+        runtime=120,
+        mem_mb=16000,
+        nodes=1
     container:
         "docker://gzmf/read_vcfs:0.1"
     log:
@@ -582,6 +691,11 @@ rule calculate_physicochemical:
         RESULTS_DIR + "/{dataset}_annotations/19_merged.pkl"
     output:
         RESULTS_DIR + "/{dataset}_annotations.pkl"
+    threads: 1
+    resources:
+        runtime=120,
+        mem_mb=16000,
+        nodes=1
     container:
         "docker://gzmf/read_vcfs:0.1"
     log:

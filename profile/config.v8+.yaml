@@ -1,0 +1,6 @@
+executor: slurm
+cores: 4000
+jobs: 1900
+default_resources:
+    slurm_account: guzmanfj
+    slurm_partition: batch
