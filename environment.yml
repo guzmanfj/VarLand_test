@@ -3,4 +3,4 @@ channels:
   - bioconda
 
 dependencies:
-  - snakemake=8.10.7
+  - snakemake=8.20

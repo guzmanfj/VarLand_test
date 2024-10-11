@@ -47,19 +47,23 @@ if __name__ == '__main__':
 
     variants = pd.read_pickle(args.input)
 
-    # Write the variants to a file in the format
-    # chr pos ref alt res_wt res_mut
-    variants_formatted = variants[['#CHROM','POS','REF','ALT','Amino_acids']].copy()
-    # Create two columns from the 'Amino_acids' column, splitting it by '/'
-    variants_formatted[['res_wt','res_mut']] = variants_formatted['Amino_acids'].str.split('/', expand=True)
+    if not variants.empty:
 
-    variants_formatted.drop(columns=['Amino_acids'], inplace=True)
+        # Write the variants to a file in the format
+        # chr pos ref alt res_wt res_mut
+        variants_formatted = variants[['#CHROM','POS','REF','ALT','Amino_acids']].copy()
+        # Create two columns from the 'Amino_acids' column, splitting it by '/'
+        variants_formatted[['res_wt','res_mut']] = variants_formatted['Amino_acids'].str.split('/', expand=True)
 
-    # Remove the 'chr' prefix from the chromosome column
-    variants_formatted['#CHROM'] = variants_formatted['#CHROM'].str.replace('chr','')
+        variants_formatted.drop(columns=['Amino_acids'], inplace=True)
 
-    # Save to csv without header and index
-    variants_formatted.to_csv(args.output, index=False, header=False,
-                            sep='\t')
+        # Remove the 'chr' prefix from the chromosome column
+        variants_formatted['#CHROM'] = variants_formatted['#CHROM'].str.replace('chr','')
+
+        # Save to csv without header and index
+        variants_formatted.to_csv(args.output, index=False, header=False,
+                                sep='\t')
+    else:
+        args.output.touch()
 
     print(f'Done.')

@@ -292,7 +292,7 @@ rule process_infos:
     threads: 1
     resources:
         runtime=120,
-        mem_mb=16000,
+        mem_mb=32000,
         nodes=1
     container:
         "docker://gzmf/read_vcfs:0.1"
@@ -315,7 +315,7 @@ rule filter_missense:
     threads: 1
     resources:
         runtime=120,
-        mem_mb=16000,
+        mem_mb=128000,
         nodes=1
     container:
         "docker://gzmf/read_vcfs:0.1"
@@ -338,7 +338,7 @@ rule filter_mane:
     threads: 1
     resources:
         runtime=120,
-        mem_mb=16000,
+        mem_mb=128000,
         nodes=1
     container:
         "docker://gzmf/read_vcfs:0.1"
@@ -363,7 +363,7 @@ rule filter_refseq:
     threads: 1
     resources:
         runtime=120,
-        mem_mb=16000,
+        mem_mb=128000,
         nodes=1
     container:
         "docker://gzmf/read_vcfs:0.1"
@@ -386,10 +386,10 @@ checkpoint get_uniprot_ids:
         RESULTS_DIR + "/{dataset}_annotations/05_variants.csv"
     output:
         out_ranges=directory(RESULTS_DIR + "/{dataset}_annotations/07_ranges")
-    threads: 128
+    threads: 40
     resources:
         runtime=180,
-        mem_mb=16000,
+        mem_mb=128000,
         nodes=1
     params:
         chunk_size=100000
@@ -401,7 +401,7 @@ checkpoint get_uniprot_ids:
         """
         python {SCRIPTS_DIR}/get_uniprot_ids.py {input} {UNIPROT_IDMAPPING} \
         {output.out_ranges} --cpus {threads} \
-        --chunk_size {params.chunk_size} --max_jobs {threads} > {log} 2>&1
+        --chunk_size {params.chunk_size} --max_jobs 1900 > {log} 2>&1
         """
 
 
@@ -536,7 +536,7 @@ rule calculate_features:
         RESULTS_DIR + "/{dataset}_annotations/11_features/15_variants_{j}.pkl"
     threads: 1
     resources:
-        runtime=60,
+        runtime=600,
         mem_mb=4000,
         nodes=1
     container:
@@ -559,7 +559,7 @@ rule run_foldx:
         RESULTS_DIR + "/{dataset}_annotations/12_foldx/17_foldx_energies_{j}.pkl"
     threads: 1
     resources:
-        runtime=120,
+        runtime=1440,
         mem_mb=4000,
         nodes=1
     container:
@@ -671,7 +671,7 @@ rule merge_variants:
     threads: 1
     resources:
         runtime=120,
-        mem_mb=16000,
+        mem_mb=128000,
         nodes=1
     container:
         "docker://gzmf/read_vcfs:0.1"

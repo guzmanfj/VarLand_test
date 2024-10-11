@@ -1,6 +1,10 @@
 executor: slurm
-cores: 4000
+cores: 1900
+resources:
+    mem_mb: 16000000
 jobs: 1900
-default_resources:
-    slurm_account: guzmanfj
-    slurm_partition: batch
+default-resources:
+    slurm_account: "pi-aroldst"
+    slurm_partition: "batch"
+use-apptainer: true
+apptainer-args: "-B /ibex/user/guzmanfj/projects/variant_annotator_snakemake/resources/vep_data:/data"

@@ -3,6 +3,7 @@ import numpy as np
 import pickle
 from pathlib import Path
 import argparse
+import os
 
 
 def parsing(args: list=None) -> argparse.Namespace:
@@ -128,8 +129,9 @@ if __name__ == '__main__':
     ############################### Add dbNSFP features
     dbnsfp_results = []
     for file in args.dbnsfp_dir.glob('*.out'):
-        idbnsfp = pd.read_csv(file, sep='\t')
-        dbnsfp_results.append(idbnsfp)
+        if not (os.stat(file).st_size == 0):
+            idbnsfp = pd.read_csv(file, sep='\t')
+            dbnsfp_results.append(idbnsfp)
 
     dbnsfp = pd.concat(dbnsfp_results).reset_index(drop=True)
     
