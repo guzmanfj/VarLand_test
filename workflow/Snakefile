@@ -21,7 +21,7 @@ DSSPS = config["dssps"]
 
 chromosomes = ["chr" + str(i) for i in range(1, 23)] + ["chrX", "chrY"]
 MAX_VARIANTS = config["max_variants_per_vep_run"]
-# ALL_CHUNKS = list(itertools.product(string.ascii_lowercase, string.ascii_lowercase))
+MAX_JOBS = config["max_jobs"]
 
 wildcard_constraints:
     dataset="|".join(config["datasets"]),
@@ -401,7 +401,7 @@ checkpoint get_uniprot_ids:
         """
         python {SCRIPTS_DIR}/get_uniprot_ids.py {input} {UNIPROT_IDMAPPING} \
         {output.out_ranges} --cpus {threads} \
-        --chunk_size {params.chunk_size} --max_jobs 1900 > {log} 2>&1
+        --chunk_size {params.chunk_size} --max_jobs {MAX_JOBS} > {log} 2>&1
         """
 
 
@@ -694,7 +694,7 @@ rule calculate_physicochemical:
     threads: 1
     resources:
         runtime=120,
-        mem_mb=16000,
+        mem_mb=128000,
         nodes=1
     container:
         "docker://gzmf/read_vcfs:0.1"
