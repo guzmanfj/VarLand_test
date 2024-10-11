@@ -75,8 +75,6 @@ if __name__ == '__main__':
     
     args = parsing()
 
-    # njobs = int(sys.argv[1])
-
     # Read all variants dataframes
     variants = []
     for file in args.input.glob('15_variants_*.pkl'):
@@ -139,8 +137,9 @@ if __name__ == '__main__':
     # separated by a semicolon. We need to separate these values into their own rows.
     # Separate the values in the columns of a row by the delimiter, and return
     # a dataframe with the separated values into their own rows.
-    dbnsfp_exploded = pd.concat(dbnsfp.iloc[:,:13].apply(lambda x: separate_values(
-                                        x, list(dbnsfp.columns[6:13])), axis=1).values).reset_index(drop=True)
+    dbnsfp_exploded = (pd.concat(dbnsfp.iloc[:,:13].apply(lambda x: separate_values(
+                                    x, list(dbnsfp.columns[6:13])), axis=1).values)
+                       .reset_index(drop=True))
 
     # Merge the exploded dataframe with the score columns of the original dbnsfp dataframe
     dbnsfp_merged = pd.merge(dbnsfp_exploded, dbnsfp.drop(columns=dbnsfp.columns[6:13]),
