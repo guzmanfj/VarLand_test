@@ -44,8 +44,7 @@ if __name__=='__main__':
     args = parsing()
 
     # Define the names of the chromosome directories
-    chr_dirs = [args.input / f'chr{i}_split' for i in range(1, 23)]
-    chr_dirs = chr_dirs + [args.input / 'chrX_split', args.input / 'chrY_split']
+    chr_dirs = list(args.input.glob('*_split'))
 
     # Read one of the files and find the first line that starts with '#CHROM'
     with open(chr_dirs[0] / 'chunk_aa.vcf.vep','r') as f:

@@ -61,7 +61,7 @@ def parsing(args: list=None) -> argparse.Namespace:
     return parser.parse_args(args)
 
 
-def calculate_variants_per_job(nvariants:int, min_variants:int=50,
+def calculate_variants_per_job(nvariants:int, min_variants:int=20,
                                max_jobs:int=100) -> None:
     """
     I have to split the variants in smaller chunks to run the next script in

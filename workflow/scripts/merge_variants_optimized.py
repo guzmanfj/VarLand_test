@@ -61,29 +61,34 @@ def separate_values(df):
     columns = df.columns[6:13]
     return df.apply(lambda row: pd.DataFrame({
         col: row[col].split(';') for col in columns
-    }).assign(**{col: row[col] for col in df.columns[:6]}), axis=1)
+    }).assign(**{col: row[col] for col in df.columns[:6]}), axis=1).to_list()
 
 def process_dbnsfp_file(file):
     if os.stat(file).st_size == 0:
         return None
     df = pd.read_csv(file, sep='\t')
-    
-    # Apply separate_values to this individual file
-    df_exploded = pd.concat(separate_values(df.iloc[:,:13])).reset_index(drop=True)
-    
-    # Merge the exploded dataframe with the score columns of the original df
-    df_merged = pd.merge(df_exploded, df.drop(columns=df.columns[6:13]),
-                         on=['#chr','pos(1-based)','ref','alt','aaref','aaalt'], how='left')
-    
-    # Rename columns to merge with the variants dataframe
-    df_merged.rename(columns={'#chr':'#CHROM',
-                              'pos(1-based)':'POS',
-                              'ref':'REF',
-                              'alt':'ALT',
-                              'Ensembl_transcriptid':'Feature',
-                              'aapos':'Residue_position'}, inplace=True)
-    df_merged['Residue_position'] = df_merged['Residue_position'].astype(int)
-    df_merged['#CHROM'] = 'chr' + df_merged['#CHROM'].astype(str)
+    df['aapos'] = df['aapos'].astype(str)
+
+    try:
+        # Apply separate_values to this individual file
+        df_exploded = pd.concat(separate_values(df.iloc[:,:13])).reset_index(drop=True)
+        
+        # Merge the exploded dataframe with the score columns of the original df
+        df_merged = pd.merge(df_exploded, df.drop(columns=df.columns[6:13]),
+                            on=['#chr','pos(1-based)','ref','alt','aaref','aaalt'], how='left')
+        
+        # Rename columns to merge with the variants dataframe
+        df_merged.rename(columns={'#chr':'#CHROM',
+                                'pos(1-based)':'POS',
+                                'ref':'REF',
+                                'alt':'ALT',
+                                'Ensembl_transcriptid':'Feature',
+                                'aapos':'Residue_position'}, inplace=True)
+        df_merged['Residue_position'] = df_merged['Residue_position'].astype(int)
+        df_merged['#CHROM'] = 'chr' + df_merged['#CHROM'].astype(str)
+    except:
+        print(file)
+        raise
     
     return df_merged
 
@@ -116,9 +121,10 @@ if __name__ == '__main__':
     
     # Process dbNSFP files in parallel
     with mp.Pool(args.cpus) as pool:
-        dbnsfp_results = list(filter(None,
-                            pool.map(process_dbnsfp_file, args.dbnsfp_dir.glob('*.out'))))
+        dbnsfp_results = pool.map(process_dbnsfp_file, args.dbnsfp_dir.glob('*.out'))
     
+    dbnsfp_merged = pd.concat([df for df in dbnsfp_results if df is not None]).reset_index(drop=True)
+
     # Concatenate all processed dbNSFP results
     dbnsfp_merged = pd.concat(dbnsfp_results).reset_index(drop=True)
     

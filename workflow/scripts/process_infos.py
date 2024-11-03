@@ -101,7 +101,8 @@ if __name__=='__main__':
             key = field.split('=')[0]
 
             # Check if the field has a type of 'Flag'
-            if fields[key] == 'Flag':
+            is_flag = (fields[key] == 'Flag') if key in fields else False
+            if is_flag:
                 variant_infos['flags'].append(key)
             else:
                 variant_infos[key] = field.split('=')[1]

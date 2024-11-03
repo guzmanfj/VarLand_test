@@ -19,7 +19,14 @@ PANTHER = config["panther"]
 PDBMODELS = config["pdbmodels"]
 DSSPS = config["dssps"]
 
-chromosomes = ["chr" + str(i) for i in range(1, 23)] + ["chrX", "chrY"]
+chr_format = config["chr_format"]
+
+# Make the chromosome strings according to the format in the VCF
+if chr_format == 'string':
+    chromosomes = ["chr" + str(i) for i in range(1, 23)] + ["chrX", "chrY"]
+else:
+    chromosomes = [str(i) for i in range(1,23)] + ["X", "Y"]
+    
 MAX_VARIANTS = config["max_variants_per_vep_run"]
 MAX_JOBS = config["max_jobs"]
 
@@ -303,19 +310,18 @@ rule process_infos:
         python {SCRIPTS_DIR}/process_infos.py {input} {params.infos} {output} > {log} 2>&1
         """
 
-
-rule filter_missense:
+rule filter_missense_mane_refseq:
     """
     Separates the INFO fields into columns and filters missense variants
     """
     input:
         RESULTS_DIR + "/{dataset}_annotations/02_variants.pkl"
     output:
-        RESULTS_DIR + "/{dataset}_annotations/03_missense.pkl"
+        RESULTS_DIR + "/{dataset}_annotations/05_variants.csv"
     threads: 1
     resources:
         runtime=120,
-        mem_mb=128000,
+        mem_mb=400000,
         nodes=1
     container:
         "docker://gzmf/read_vcfs:0.1"
@@ -323,55 +329,7 @@ rule filter_missense:
         LOG_DIR + "/09_filter_missense/{dataset}.log"
     shell:
         """
-        python {SCRIPTS_DIR}/filter_missense.py {input} {output} > {log} 2>&1
-        """
-
-
-rule filter_mane:
-    """
-    Filter the variants that have a MANE transcript
-    """
-    input:
-        RESULTS_DIR + "/{dataset}_annotations/03_missense.pkl"
-    output:
-        RESULTS_DIR + "/{dataset}_annotations/04_mane.pkl"
-    threads: 1
-    resources:
-        runtime=120,
-        mem_mb=128000,
-        nodes=1
-    container:
-        "docker://gzmf/read_vcfs:0.1"
-    log:
-        LOG_DIR + "/10_filter_mane/{dataset}.log"
-    shell:
-        """
-        python {SCRIPTS_DIR}/filter_mane.py {input} {output} > {log} 2>&1
-        """
-
-
-rule filter_refseq:
-    """
-    Filter variants with the RefSeq ID equal to the MANE ID.
-    On this step the output is a csv file because the next step will read it
-    in chunks.
-    """
-    input:
-        RESULTS_DIR + "/{dataset}_annotations/04_mane.pkl"
-    output:
-        RESULTS_DIR + "/{dataset}_annotations/05_variants.csv"
-    threads: 1
-    resources:
-        runtime=120,
-        mem_mb=128000,
-        nodes=1
-    container:
-        "docker://gzmf/read_vcfs:0.1"
-    log:
-        LOG_DIR + "/11_filter_refseq/{dataset}.log"
-    shell:
-        """
-        python {SCRIPTS_DIR}/filter_refseq.py {input} {output} > {log} 2>&1
+        python {SCRIPTS_DIR}/filter_missense_mane_refseq.py {input} {output} > {log} 2>&1
         """
 
 
@@ -389,7 +347,7 @@ checkpoint get_uniprot_ids:
     threads: 40
     resources:
         runtime=180,
-        mem_mb=128000,
+        mem_mb=400000,
         nodes=1
     params:
         chunk_size=100000
@@ -559,7 +517,7 @@ rule run_foldx:
         RESULTS_DIR + "/{dataset}_annotations/12_foldx/17_foldx_energies_{j}.pkl"
     threads: 1
     resources:
-        runtime=1440,
+        runtime=2880,
         mem_mb=4000,
         nodes=1
     container:
@@ -668,10 +626,10 @@ rule merge_variants:
         dbnsfp_dir=RESULTS_DIR + "/{dataset}_annotations/13_dbnsfp"
     output:
         RESULTS_DIR + "/{dataset}_annotations/19_merged.pkl"
-    threads: 1
+    threads: 40
     resources:
-        runtime=120,
-        mem_mb=128000,
+        runtime=600,
+        mem_mb=1000000,
         nodes=1
     container:
         "docker://gzmf/read_vcfs:0.1"
@@ -679,8 +637,8 @@ rule merge_variants:
         LOG_DIR + "/19_merge_variants/{dataset}.log"
     shell:
         """
-        python {SCRIPTS_DIR}/merge_variants.py {params.features_dir} \
-        {params.foldx_dir} {params.dbnsfp_dir} {output} > {log} 2>&1
+        python {SCRIPTS_DIR}/merge_variants_optimized.py {params.features_dir} \
+        {params.foldx_dir} {params.dbnsfp_dir} {output} --cpus {threads} > {log} 2>&1
         """
 
 rule calculate_physicochemical:
