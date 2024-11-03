@@ -258,7 +258,7 @@ rule aggregate_vep:
         "echo {input} > {output}"
 
 
-rule read_vcfs:
+rule read_process_filter_vcfs:
     """
     Read all vcfs and merge them into a single pandas DataFrame
     """
@@ -268,54 +268,8 @@ rule read_vcfs:
                 dataset=config["datasets"],
                 chromosome=chromosomes)
     params:
-        chrs_dir=RESULTS_DIR + "/{dataset}_chrs"
-    output:
-        out_pickle=RESULTS_DIR + "/{dataset}_annotations/01_all_variants.pkl"
-    threads: 1
-    resources:
-        runtime=120,
-        mem_mb=16000,
-        nodes=1
-    container:
-        "docker://gzmf/read_vcfs:0.1"
-    log:
-        LOG_DIR + "/07_read_vcfs/{dataset}.log"
-    shell:
-        """
-        python {SCRIPTS_DIR}/read_vcfs.py {params.chrs_dir} {output.out_pickle} > {log} 2>&1
-        """
-
-
-rule process_infos:
-    """
-    Process the INFO fields in the VEP annotations
-    """
-    input:
-        RESULTS_DIR + "/{dataset}_annotations/01_all_variants.pkl"
-    params:
+        chrs_dir=RESULTS_DIR + "/{dataset}_chrs",
         infos=SCRIPTS_DIR + "/info_fields.txt"
-    output:
-        RESULTS_DIR + "/{dataset}_annotations/02_variants.pkl"
-    threads: 1
-    resources:
-        runtime=120,
-        mem_mb=32000,
-        nodes=1
-    container:
-        "docker://gzmf/read_vcfs:0.1"
-    log:
-        LOG_DIR + "/08_process_infos/{dataset}.log"
-    shell:
-        """
-        python {SCRIPTS_DIR}/process_infos.py {input} {params.infos} {output} > {log} 2>&1
-        """
-
-rule filter_missense_mane_refseq:
-    """
-    Separates the INFO fields into columns and filters missense variants
-    """
-    input:
-        RESULTS_DIR + "/{dataset}_annotations/02_variants.pkl"
     output:
         RESULTS_DIR + "/{dataset}_annotations/05_variants.csv"
     threads: 1
@@ -326,10 +280,11 @@ rule filter_missense_mane_refseq:
     container:
         "docker://gzmf/read_vcfs:0.1"
     log:
-        LOG_DIR + "/09_filter_missense/{dataset}.log"
+        LOG_DIR + "/07_read_process_filter_vcfs/{dataset}.log"
     shell:
         """
-        python {SCRIPTS_DIR}/filter_missense_mane_refseq.py {input} {output} > {log} 2>&1
+        python {SCRIPTS_DIR}/process_filter_variants.py {params.chrs_dir} {params.infos} \
+        {output} > {log} 2>&1
         """
 
 
