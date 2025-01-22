@@ -45,6 +45,8 @@ def parsing(args: list = None) -> argparse.Namespace:
     
     parser.add_argument('--bin_dir', help='FoldX binary directory', default=None,
                         type=validate_file)
+    
+    parser.add_argument('--executable', help='FoldX executable', default=None)
 
     return parser.parse_args(args)
 
@@ -57,6 +59,11 @@ if __name__ == "__main__":
         bin_dir = Path.cwd() / 'resources/foldx'
     else:
         bin_dir = args.bin_dir
+    
+    if args.executable is None:
+        exe = "foldx_20251231"
+    else:
+        exe = args.executable
 
     variants = pd.read_pickle(args.input)
 
@@ -73,7 +80,8 @@ if __name__ == "__main__":
         wt, mut = var["Amino_acids"].split("/")
         mut_string = f"{wt}{resnumber}{mut}"
 
-        exe = FoldX(var.PDB_path, [[mut_string]], ["A"], verbose=False, bin_dir=bin_dir)
+        exe = FoldX(var.PDB_path, [[mut_string]], ["A"], verbose=False,
+                    bin_dir=bin_dir, executable=exe)
 
         foldx_energies[i] = exe.run()
 

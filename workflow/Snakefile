@@ -476,12 +476,13 @@ rule run_foldx:
         mem_mb=4000,
         nodes=1
     container:
-        "docker://gzmf/run_foldx:0.2"
+        "docker://gzmf/run_foldx:0.3"
     log:
         LOG_DIR + "/18_run_foldx/{dataset}_{j}.log"
     shell:
         """
-        python {SCRIPTS_DIR}/run_foldx.py {input} {output} > {log} 2>&1
+        python {SCRIPTS_DIR}/run_foldx.py {input} {output} \
+        --bin_dir resources/foldx --executable foldx_20251231 > {log} 2>&1
         """
 
 rule write_for_dbnsfp:
