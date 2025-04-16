@@ -109,6 +109,9 @@ def process_infos(variants: pd.DataFrame,
     # Erase useless columns
     variants = variants.drop(columns=['QUAL', 'FILTER'])
 
+    # Remove rows with empty INFO
+    variants = variants[variants.INFO!='.'].reset_index(drop=True)
+
     # Process INFO fields
     # Read the field definitions from the info_fields.txt file
     # Get the field name and field type from each line
@@ -147,7 +150,12 @@ def process_infos(variants: pd.DataFrame,
             if is_flag:
                 variant_infos['flags'].append(key)
             else:
-                variant_infos[key] = field.split('=')[1]
+                try:
+                    variant_infos[key] = field.split('=')[1]
+                except:
+                    print(info_list)
+                    print(field)
+                    raise
 
         # Save the values only for the info fields that were defined in info_fields.txt
         for key in info_dict.keys():

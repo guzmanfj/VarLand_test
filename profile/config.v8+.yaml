@@ -4,7 +4,7 @@ resources:
     mem_mb: 16000000
 jobs: 1900
 default-resources:
-    slurm_account: "pi-aroldst"
+    slurm_account: "pi-wulffb"
     slurm_partition: "batch"
 use-apptainer: true
 apptainer-args: "-B /ibex/user/guzmanfj/projects/variant_annotator_snakemake/resources/vep_data:/data"

@@ -1,11 +1,12 @@
 datasets:
-  AM_hg38_benign_sampled: data/AM_hg38_benign_sampled.vcf
+  saudi: data/var-all-in-gnomad_mod.vcf
 
-results_dir: results
+chr_format: string
+results_dir: results_saudi
 data_dir: data
-log_dir: logs
+log_dir: logs_saudi
 scripts_dir: workflow/scripts
-max_variants_per_vep_run: 1000
+max_variants_per_vep_run: 10000
 max_jobs: 1900
 uniprot_idmapping: resources/uniprot_2024_02/knowledgebase/idmapping/by_organism/HUMAN_9606_idmapping.dat.gz
 alphafold_dir: resources/alphafold_human_v4

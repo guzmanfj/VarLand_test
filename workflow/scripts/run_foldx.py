@@ -81,7 +81,7 @@ if __name__ == "__main__":
         mut_string = f"{wt}{resnumber}{mut}"
 
         exe = FoldX(var.PDB_path, [[mut_string]], ["A"], verbose=False,
-                    bin_dir=bin_dir, executable=exe)
+                    bin_dir=bin_dir)
 
         foldx_energies[i] = exe.run()
 

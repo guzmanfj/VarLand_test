@@ -481,8 +481,7 @@ rule run_foldx:
         LOG_DIR + "/18_run_foldx/{dataset}_{j}.log"
     shell:
         """
-        python {SCRIPTS_DIR}/run_foldx.py {input} {output} \
-        --bin_dir resources/foldx --executable foldx_20251231 > {log} 2>&1
+        python {SCRIPTS_DIR}/run_foldx.py {input} {output} > {log} 2>&1
         """
 
 rule write_for_dbnsfp:
