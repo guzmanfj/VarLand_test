@@ -1,10 +1,12 @@
 datasets:
   saudi: data/var-all-in-gnomad_mod.vcf
 
+foldx_executable_name: foldx_20251231
+
 chr_format: string
-results_dir: results_saudi
+results_dir: annotation_output
 data_dir: data
-log_dir: logs_saudi
+log_dir: annotation_logs
 scripts_dir: workflow/scripts
 max_variants_per_vep_run: 10000
 max_jobs: 1900

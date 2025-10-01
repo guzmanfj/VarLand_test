@@ -1,0 +1,15 @@
+executor: slurm
+resources:                 # Global resource caps across all running jobs
+    mem_mb: 16000000
+    threads: 1000
+resource_scopes:
+    mem_mb: "global"
+    threads: "global"
+jobs: 1800                 # Max number of jobs submitted in parallel
+default-resources:
+    slurm_account: "slurm-account"
+    slurm_partition: "batch"
+max-jobs-per-second: 10    # How many jobs to process/submit per second
+local-cores: 4             # Number of cores to use in local (login) node
+use-apptainer: true        # Use singularity/apptainer containers
+apptainer-args: "-B /path/to/resources/vep_data:/data"

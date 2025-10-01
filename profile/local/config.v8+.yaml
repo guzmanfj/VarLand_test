@@ -1,0 +1,5 @@
+cores: 32              # CPUs to use
+resources:
+    mem_mb: 128000     # RAM to use
+use-apptainer: true
+apptainer-args: "-B /path/to/resources/vep_data:/data"
