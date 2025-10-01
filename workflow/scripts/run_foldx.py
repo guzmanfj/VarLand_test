@@ -39,9 +39,9 @@ def parsing(args: list = None) -> argparse.Namespace:
         description=("Calculate FoldX energies for" " the variants pickle file.")
     )
 
-    parser.add_argument("input", help="Input pickle file", type=validate_file)
+    parser.add_argument("--input", help="Input pickle file", type=validate_file)
 
-    parser.add_argument("output", help="Output pickle file", type=Path)
+    parser.add_argument("--output", help="Output pickle file", type=Path)
     
     parser.add_argument('--bin_dir', help='FoldX binary directory', default=None,
                         type=validate_file)
@@ -61,9 +61,9 @@ if __name__ == "__main__":
         bin_dir = args.bin_dir
     
     if args.executable is None:
-        exe = "foldx_20251231"
+        executable = "foldx_20251231"
     else:
-        exe = args.executable
+        executable = args.executable
 
     variants = pd.read_pickle(args.input)
 
@@ -81,7 +81,7 @@ if __name__ == "__main__":
         mut_string = f"{wt}{resnumber}{mut}"
 
         exe = FoldX(var.PDB_path, [[mut_string]], ["A"], verbose=False,
-                    bin_dir=bin_dir)
+                    bin_dir=bin_dir, executable=executable)
 
         foldx_energies[i] = exe.run()
 
