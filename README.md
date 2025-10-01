@@ -1,5 +1,23 @@
 # VarLand
 
+Pipeline for the annotation of missense SNPs using structural and evolutionary features. Implemented with Snakemake.
+
+<p align="center">
+   <img src='./imgs/pipeline_diagram.png' width='600px'/>
+</p>
+
+</br>
+
+<img src='./imgs/dag.svg' width='100%'/>
+
+</br>
+
+# Requirements
+
+- Linux
+- Conda/Miniconda
+- Apptainer or Singularity. This pipeline was tested with [Singularity version 3.9.7](https://docs.sylabs.io/guides/3.9/user-guide/quick_start.html).
+
 # Installation
 
 1. Clone this repository:
