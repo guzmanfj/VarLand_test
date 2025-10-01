@@ -5,3 +5,5 @@ data/
 logs*/
 results*/
 env*/
+annotation_output/
+annotation_logs/

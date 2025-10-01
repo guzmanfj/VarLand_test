@@ -102,3 +102,14 @@ This is an example of how to run the pipeline using the local profile:
 conda activate ./env
 snakemake --workflow-profile ./profile/local
 ```
+
+### Results
+
+The file called `{dataset}_annotations.pkl` directly inside of the output directory (`results_dir` in the `config.yml` file) contains a Pandas DataFrame with the annotations for each variant in the input VCF file. You can load it in Python using:
+
+```python
+import pandas as pd
+
+# Use the name of your dataset instead of {dataset}, e.g. "variants" if you used the default configuration
+annotations = pd.read_pickle("results/variants_annotations.pkl")
+```
