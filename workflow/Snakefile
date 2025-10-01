@@ -7,7 +7,6 @@ localrules: aggregate_vep, aggregate_catalytic, aggregate_features
 configfile: "config/config.yml"
 
 RESULTS_DIR = config["results_dir"]
-DATA_DIR = config["data_dir"]
 LOG_DIR = config["log_dir"]
 SCRIPTS_DIR = config["scripts_dir"]
 UNIPROT_IDMAPPING = config["uniprot_idmapping"]

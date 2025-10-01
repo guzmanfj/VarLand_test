@@ -1,22 +1,29 @@
 # VarLand
 
-## Installation
+# Installation
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/guzmanfj/variant_annotator_snakemake.git
+   git clone https://github.com/guzmanfj/VarLand_test.git
    ```
 
 2. Navigate to the project directory, download, and extract the resources and data archives:
    ```bash
-   cd variant_annotator_snakemake
-   wget resources.tar.gz
+   cd VarLand_test
+   wget resources.tar.gz        # Contains AlphaFold models, VEP cache, PANTHER annotations, and UniProt ID mapping
    tar -xvzf resources.tar.gz
    rm resources.tar.gz
-   wget data.tar.gz
+   wget data.tar.gz             # Contains input VCF files used in the paper (see below)
    tar -xvzf data.tar.gz
    rm data.tar.gz
    ```
+
+  The `data` directory should now contain the following files:
+  - `AlphaMissense_hg38_benign.vcf` : Benign variants from AlphaMissense (5% most benign)
+  - `AlphaMissense_hg38_pathogenic.vcf` : Pathogenic variants from AlphaMissense (5% most pathogenic)
+  - `clinvar_20230527.vcf` : ClinVar variants
+  - `gnomad.exomes.r2.1.1.sites.liftover_grch38_AFhigherthan0.05.vcf` : Common variants from gnomAD (AF > 0.05)
+  - `AM_hg38_benign_sampled.vcf` : Sample of 240 benign variants from AlphaMissense
 
 3. Download the dbNSFP database. Go to the legacy dbNSFP website (https://sites.google.com/site/jpopgen/dbNSFP) and download dbNSFP4.9a (dbNSFP4.9a.zip) into the `resources/dbnsfp` directory. Unzip the file.
 
@@ -32,11 +39,11 @@
 
 7. Install Singularity or Apptainer. This pipeline was tested with [Singularity version 3.9.7](https://docs.sylabs.io/guides/3.9/user-guide/quick_start.html).
 
-## Usage
+# Usage
 
-### Configure Snakemake profile
+## 1. Configure Snakemake profile
 
-#### SLURM
+### a) SLURM
 
 The profile located in `profile/slurm/config.v8+.yaml` is set up to use SLURM as the job scheduler and Apptainer for containerization. If you want to use this profile, you need to modify the following fields:
 
@@ -46,12 +53,34 @@ The profile located in `profile/slurm/config.v8+.yaml` is set up to use SLURM as
 
 - The rest of the fields you can leave as they are, or modify according to the resources that you have available.
 
-#### Local execution
+### b) Local execution
 
 The profile located in `profile/local/config.v8+.yaml` is set up to use local execution without a job scheduler. Modify the fields to adjust to your local resources.
 
-### Annotate sample VCF file
+## 2. Set up `config.yml` file
 
-#### SLURM
+Set up the `config/config.yml` file according to your paths and preferences.
 
-You can run snakemake with the SLURM profile as follows:
+## 3. Annotate VCF file
+
+### a) SLURM
+
+This is an example of how to run the pipeline using the SLURM profile, on a login node:
+
+```bash
+# You have to be in the directory where you cloned the repository
+screen   # Recommended to avoid losing connection while the pipeline is running
+module load singularity/3.9.7
+conda activate ./env
+snakemake --workflow-profile ./profile/slurm
+```
+
+### b) Local execution
+
+This is an example of how to run the pipeline using the local profile:
+
+```bash
+# You have to be in the directory where you cloned the repository
+conda activate ./env
+snakemake --workflow-profile ./profile/local
+```

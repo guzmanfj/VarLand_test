@@ -1,15 +1,21 @@
 datasets:
-  saudi: data/var-all-in-gnomad_mod.vcf
+  variants: data/AM_hg38_benign_sampled.vcf     # Input .vcf
 
-foldx_executable_name: foldx_20251231
+foldx_executable_name: foldx_20251231           # Set this to the name of your foldx binary
 
-chr_format: string
-results_dir: annotation_output
-data_dir: data
-log_dir: annotation_logs
+chr_format: string                  # Whether chromosome names in the input .vcf file have the format `chr1` (string) or `1` (number)
+results_dir: annotation_output      # Directory to save outputs, under the root project directory
+log_dir: annotation_logs            # Directory to save logs, under the root project directory
+
+max_variants_per_vep_run: 10000     # How many variants to run in each VEP call. Leave as is if unsure
+
+max_jobs: 1800                      # How many jobs will be submitted to SLURM at a time.
+                                    # Used to split variants into this number of files for parallel processing.
+                                    # It should match the `jobs` parameter in profile/slurm/config.v8+.yaml
+                                    # If running locally it just defines in how many chunks to split the input variants.
+
+# You can leave the following parameters as they are:
 scripts_dir: workflow/scripts
-max_variants_per_vep_run: 10000
-max_jobs: 1900
 uniprot_idmapping: resources/uniprot_2024_02/knowledgebase/idmapping/by_organism/HUMAN_9606_idmapping.dat.gz
 alphafold_dir: resources/alphafold_human_v4
 mane_dir: resources/alphafold_mane
