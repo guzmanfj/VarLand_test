@@ -18,6 +18,7 @@ DSSP_MANE = config["dssp_mane"]
 PANTHER = config["panther"]
 PDBMODELS = config["pdbmodels"]
 DSSPS = config["dssps"]
+FOLDX_EXECUTABLE = config["foldx_executable_name"]
 
 chr_format = config["chr_format"]
 
@@ -481,7 +482,8 @@ rule run_foldx:
         LOG_DIR + "/18_run_foldx/{dataset}_{j}.log"
     shell:
         """
-        python {SCRIPTS_DIR}/run_foldx.py {input} {output} > {log} 2>&1
+        python {SCRIPTS_DIR}/run_foldx.py --input {input} --output {output} \
+        --executable {FOLDX_EXECUTABLE} > {log} 2>&1
         """
 
 rule write_for_dbnsfp:
