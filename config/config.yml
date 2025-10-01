@@ -22,5 +22,5 @@ mane_dir: resources/alphafold_mane
 dssp_alphafold: resources/alphafold_human_v4_dssp
 dssp_mane: resources/alphafold_mane_dssp
 panther: resources/panther/PTHR17.0_human_clean_2.pkl
-pdbmodels: resources/pdbmodels.pkl
+pdbmodels: resources/pdbmodels_2025.pkl
 dssps: resources/dssps.pkl
