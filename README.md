@@ -113,3 +113,33 @@ import pandas as pd
 # Use the name of your dataset instead of {dataset}, e.g. "variants" if you used the default configuration
 annotations = pd.read_pickle("results/variants_annotations.pkl")
 ```
+
+## Troubleshooting
+
+### Error with `.docker/config.json`
+
+If you have Docker installed on your machine, Singularity might try to access the Docker credentials file located at `~/.docker/config.json` and fail if it does not have the proper permissions. The error message looks something like this:
+
+```
+getting username and password: 1 error occurred:
+	* error reading JSON file "/home/username/.docker/config.json": open /home/username/.docker/config.json: permission denied
+```
+
+To avoid this, you can do one of the following:
+
+a) Change the permissions of the `.docker` directory and its contents so that your user has access to it:
+
+```bash
+sudo chown -R "$USER":"$(id -gn)" ~/.docker
+chmod 700 ~/.docker
+[ -f ~/.docker/config.json ] && chmod 600 ~/.docker/config.json
+```
+
+b) If you're in a multi-user system and you don't want to change the permissions of the `.docker` directory, you can bypass the Docker credentials file by pointing the Docker config to an empty, readable directory. For example:
+
+```bash
+mkdir -p ~/.docker_empty
+export DOCKER_CONFIG="$HOME/.docker-empty"
+```
+
+Then run Snakemake in the same terminal session.
