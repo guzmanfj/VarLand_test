@@ -1,0 +1,1 @@
+snakemake-executor-plugin-slurm==1.1.0
